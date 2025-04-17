@@ -15,25 +15,25 @@ find_package(motor_info_interface REQUIRED)
 # pkg_check_modules(LIBMODBUS REQUIRED libmodbus)
 # -----------------------------------------------------------------------------------------
 
-# # 指定額外的include路徑
-# include_directories(./include/${PROJECT_NAME})
+# 指定額外的include路徑
+include_directories(./include/${PROJECT_NAME})
 
 # 生成可執行文件與其所需來源檔
 # message("motor_communication_INCLUDE_DIRS: ${motor_communication_INCLUDE_DIRS}")
-# add_executable(01_publisher
-# src/01_publisher.cpp 
-# ./include/${PROJECT_NAME}/classAPI_publisher.cpp	)
-# ament_target_dependencies(01_publisher rclcpp std_msgs zj_00_beginner_interfaces)
+add_executable(01_publisher
+src/01_publisher.cpp 
+./include/${PROJECT_NAME}/classAPI_publisher.cpp	)
+ament_target_dependencies(01_publisher rclcpp std_msgs motor_info_interface)
 # -----------------------------------------------------------------------------------------
-# 若需要include&link非ROS的library，參考以下cmake的指令
+# # 若需要include&link非ROS的library，參考以下cmake的指令
 # target_include_directories(01_publisher PUBLIC ${LIBMODBUS_INCLUDE_DIRS})
 # target_link_libraries(01_publisher ${LIBMODBUS_LIBRARIES})
 # -----------------------------------------------------------------------------------------
 
-# add_executable(02_subscriber 
-# 	src/02_subscriber.cpp
-# 	./include/${PROJECT_NAME}/classAPI_subscriber.cpp	)
-# ament_target_dependencies(02_subscriber rclcpp std_msgs zj_00_beginner_interfaces)
+add_executable(02_subscriber 
+	src/02_subscriber.cpp
+	./include/${PROJECT_NAME}/classAPI_subscriber.cpp	)
+ament_target_dependencies(02_subscriber rclcpp std_msgs motor_info_interface)
 
 
 # add_executable(03_service_TwoIntAdd 
@@ -45,8 +45,8 @@ find_package(motor_info_interface REQUIRED)
 # ament_target_dependencies(04_client_TwoIntAdd rclcpp example_interfaces)
 
 install(TARGETS
-# 01_publisher
-# 02_subscriber
+01_publisher
+02_subscriber
 # 03_service_TwoIntAdd
 # 04_client_TwoIntAdd
 DESTINATION lib/${PROJECT_NAME} )
