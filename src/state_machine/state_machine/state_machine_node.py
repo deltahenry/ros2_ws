@@ -16,6 +16,10 @@ def set_home(publisher):
     msg.data = True
     publisher.publish(msg)
 
+def state_pub(publisher,state_info):
+    msg = StateInfo()
+    msg.initialize = state_info
+    publisher.publish(msg)
 class InitializeState(State):
     def __init__(self) -> None:
         super().__init__(["outcome1", "outcome2"])
@@ -27,16 +31,19 @@ class InitializeState(State):
         init_finished = blackboard["init_finished"]
 
         print("init_buttons:",init_buttons)
-        publisher = blackboard["set_home_publisher"]
-
         print("motion_finished:",motion_finished)
 
+        set_home_publisher = blackboard["set_home_publisher"]
+        state_publisher = blackboard["state_publisher"]
+
         if init_finished:
+            blackboard["state_info"]["initialize"] = True
+            state_pub(state_publisher,blackboard["state_info"]["initialize"])
             return "outcome2" #Go To Idle state
         else:
             if motion_finished:  #Ready to move
                 if init_buttons:
-                    set_home(publisher)
+                    set_home(set_home_publisher)
                     return "outcome1"
                 else:
                     return "outcome1"
@@ -95,14 +102,16 @@ class StateMachineNode(Node):
         self.init_finished_sub = self.create_subscription(Bool,'/init_finished',self.init_finished_callback,10)
 
         #publiher
-        self.set_home_pub = self.create_publisher(Bool, '/set_home_cmd', 10)
+        self.set_home_pub = self.create_publisher(Bool, '/set_home_cmd', 10) #to_motion_control
+        self.state_info_pub = self.create_publisher(StateInfo, '/state_info', 10) #to_gui_node
         
         #open the blackboard
         self.blackboard = Blackboard()
 
         #store publisher in blackboard 
         self.blackboard["set_home_publisher"] = self.set_home_pub
-
+        self.blackboard["state_publisher"] = self.state_info_pub
+        
         #store init_finished data in blackboard
         self.blackboard["init_finished"] = False
 
@@ -116,6 +125,17 @@ class StateMachineNode(Node):
             "cabinet_line_button":False,
             "manual_button":False,
             "gripper_button":False,
+        }
+
+        #init state_info in blackboard
+        self.blackboard["state_info"]={
+            "initialize":False,      
+            "idle":False,
+            "batterypicker":False,
+            "batteryassembler":False,
+            "error":False,
+            "troubleshotting":False,
+
         }
 
         # Create a finite state machine (FSM)
@@ -198,7 +218,6 @@ class StateMachineNode(Node):
 
     def init_finished_callback(self,msg:Bool):
         self.blackboard["init_finished"] = msg.data
-
 
     def update_fsm(self):
         print("update_fsm")
