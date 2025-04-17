@@ -8,7 +8,7 @@ from yasmin import State, Blackboard, StateMachine
 from yasmin_ros import set_ros_loggers
 from yasmin_viewer import YasminViewerPub
 from std_msgs.msg import String,Float64MultiArray,Bool
-from custom_msgs.msg import StateInfo, ButtonCmd,PoseIncrement 
+from custom_msgs.msg import StateInfo, ButtonCmd,PoseIncrement,Finished
 
 
 def set_home(publisher):
@@ -24,19 +24,24 @@ class InitializeState(State):
         yasmin.YASMIN_LOG_INFO("Executing state Initialize")
         init_buttons = blackboard["button_cmd"]["init_button"]
         motion_finished = blackboard["motion_finished"]
+        init_finished = blackboard["init_finished"]
 
         print("init_buttons:",init_buttons)
         publisher = blackboard["set_home_publisher"]
 
         print("motion_finished:",motion_finished)
-        if motion_finished:
-            if init_buttons:
-                set_home(publisher)
-                return "outcome1"
-            else:
-                return "outcome1"
+
+        if init_finished:
+            return "outcome2" #Go To Idle state
         else:
-            return "outcome2"
+            if motion_finished:  #Ready to move
+                if init_buttons:
+                    set_home(publisher)
+                    return "outcome1"
+                else:
+                    return "outcome1"
+            else:                   #still tracking
+                return "outcome1"
 
 class IdleState(State):
     def __init__(self) -> None:
@@ -87,6 +92,7 @@ class StateMachineNode(Node):
         #subscriber
         self.button_cmd_sub = self.create_subscription(ButtonCmd,'/button_cmd',self.button_cmd_callback,10)
         self.motion_finished_sub = self.create_subscription(Bool,'/motion_finished',self.motion_finished_callback,10)
+        self.init_finished_sub = self.create_subscription(Bool,'/init_finished',self.init_finished_callback,10)
 
         #publiher
         self.set_home_pub = self.create_publisher(Bool, '/set_home_cmd', 10)
@@ -96,6 +102,9 @@ class StateMachineNode(Node):
 
         #store publisher in blackboard 
         self.blackboard["set_home_publisher"] = self.set_home_pub
+
+        #store init_finished data in blackboard
+        self.blackboard["init_finished"] = False
 
         #store motion_finished data in blackboard
         self.blackboard["motion_finished"] = False
@@ -186,6 +195,10 @@ class StateMachineNode(Node):
 
     def motion_finished_callback(self,msg:Bool):
         self.blackboard["motion_finished"] = msg.data
+
+    def init_finished_callback(self,msg:Bool):
+        self.blackboard["init_finished"] = msg.data
+
 
     def update_fsm(self):
         print("update_fsm")

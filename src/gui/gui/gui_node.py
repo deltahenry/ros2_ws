@@ -9,6 +9,8 @@ class UINode(Node):
 
         # Publishers
         self.button_cmd_publisher = self.create_publisher(ButtonCmd, '/button_cmd', 10)
+        self.a_publisher = self.create_publisher(InterfaceMultipleMotors,'/multi_motor_info',10)
+
         #Subscribers
         self.state_info_subscriber = self.create_publisher(StateInfo, '/state_info', 10)
 
