@@ -1,0 +1,6 @@
+#ButtonCmd.msg
+bool init_button
+bool battery_line_button
+bool cabinet_line_button
+bool manual_button
+bool gripper_button
