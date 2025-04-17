@@ -14,7 +14,9 @@ find_package(builtin_interfaces REQUIRED)
 set(msg_files
   "msg/PoseIncrement.msg"
   "msg/ButtonCmd.msg"
-  "msg/StateInfo.msg"  # <- Corrected typo
+  "msg/StateInfo.msg"  
+  "msg/InterfaceSingleMotor.msg"# <- Corrected typo
+  "msg/InterfaceMultipleMotors.msg"# <- Corrected typo
 )
 
 # Generate interfaces

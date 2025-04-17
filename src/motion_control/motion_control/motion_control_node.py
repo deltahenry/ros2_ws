@@ -18,7 +18,7 @@ class MotionControlNode(Node):
         self.batch_size = self.get_parameter('batch_size').get_parameter_value().integer_value
 
         self.current_pose = Pose2D()
-        self.current_motor_pos = [12.0, 0.0, 0.0]
+        self.current_motor_pos = [-12.0, 11.0, 5.0]
         self.last_sent_batch = []
 
         self.position_queue = []
@@ -30,12 +30,14 @@ class MotionControlNode(Node):
 
         self.is_idle = True #pub ready to move(in the beginning)
 
+        #subscriber
         self.pos_cmd_sub = self.create_subscription(Pose2D, '/position_cmd', self.position_cmd_callback, 10)
         self.set_home_sub = self.create_subscription(Bool, '/set_home_cmd', self.set_home_callback, 10)
         self.motor_info_sub = self.create_subscription(Float32MultiArray, '/motor_position_info', self.motor_info_callback, 10)
 
+        #publisher
         self.motor_pub = self.create_publisher(Float32MultiArray, '/motor_position_ref', 10)
-        self.motion_finished_pub = self.create_publisher(Bool, '/motor_finished', 10)
+        self.motion_finished_pub = self.create_publisher(Bool, '/motion_finished', 10)
 
         self.timer = self.create_timer(1.0 / 40.0, self.timer_callback)
 
@@ -54,7 +56,7 @@ class MotionControlNode(Node):
             start = self.current_motor_pos
             home_trajectory = self.generate_home_trajectory(start, home_position)
             home_trajectory = self.pad_trajectory(home_trajectory)  #10
-            print("home.tra:",home_trajectory)
+            # print("home.tra:",home_trajectory)
             self.home_queue = home_trajectory.copy()
             self.has_new_home = True
 
@@ -91,12 +93,12 @@ class MotionControlNode(Node):
         return [[x + 0.5, y + 0.5, yaw * 10] for x, y, yaw in trajectory]
 
     def generate_home_trajectory(self, start, end):
-        dx, dy, dyaw = end[0] - start[0], end[1] - start[1], end[2] - start[2]
-        dist = max(abs(dx), abs(dy), abs(dyaw))
-        steps = max(int(dist / self.v_des), 1)
+        dM1_len, dM2_len, dM3_len = end[0] - start[0], end[1] - start[1], end[2] - start[2]
+        max_dist = max(abs(dM1_len), abs(dM2_len), abs(dM3_len))
+        steps = max(int(max_dist / self.v_des), 1)
 
-        x_step, y_step, yaw_step = dx / steps, dy / steps, dyaw / steps
-        return [[start[0] + i * x_step, start[1] + i * y_step, start[2] + i * yaw_step] for i in range(1, steps + 1)]
+        M1_step, M2_step, M3_step = dM1_len / steps, dM2_len / steps, dM3_len / steps
+        return [[start[0] + i *M1_step, start[1] + i * M2_step, start[2] + i * M3_step] for i in range(1, steps + 1)]
 
     def pad_trajectory(self, trajectory):
         if len(trajectory) % self.batch_size != 0:
@@ -153,14 +155,17 @@ class MotionControlNode(Node):
         if self.has_new_home or self.has_new_position:
             self.is_idle = False
             self.publish_motor_positions()
+            self.motion_finished_pub.publish(Bool(data=False))     # publish trajectory is unfinished
         if self.check_motion:
+            # print("target check")
             if self.is_motor_at_target():
-                self.motion_finished_pub.publish(Bool(data=True))
+                self.motion_finished_pub.publish(Bool(data=True))  #the point is arrive
                 self.check_motion = False          
                 self.is_idle =True
             else: 
                 self.motion_finished_pub.publish(Bool(data=False))
         if self.is_idle and not self.has_new_home and not self.has_new_position:
+            print("ready")
             self.motion_finished_pub.publish(Bool(data=True))
 
 def main(args=None):

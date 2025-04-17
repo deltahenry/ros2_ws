@@ -1,4 +1,4 @@
-from custom_msgs.msg import StateInfo, ButtonCmd,PoseIncrement 
+from custom_msgs.msg import StateInfo, ButtonCmd,PoseIncrement,InterfaceSingleMotor,InterfaceMultipleMotors
 from std_msgs.msg import String
 from rclpy.node import Node
 import rclpy

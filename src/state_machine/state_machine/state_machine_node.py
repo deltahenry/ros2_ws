@@ -22,14 +22,21 @@ class InitializeState(State):
 
     def execute(self, blackboard: Blackboard) -> str:
         yasmin.YASMIN_LOG_INFO("Executing state Initialize")
-        buttons = blackboard["button_cmd"]["init_button"]
-        print(buttons)
+        init_buttons = blackboard["button_cmd"]["init_button"]
+        motion_finished = blackboard["motion_finished"]
+
+        print("init_buttons:",init_buttons)
         publisher = blackboard["set_home_publisher"]
-        if buttons:
-            set_home(publisher)
-            return "outcome2"
+
+        print("motion_finished:",motion_finished)
+        if motion_finished:
+            if init_buttons:
+                set_home(publisher)
+                return "outcome1"
+            else:
+                return "outcome1"
         else:
-            return "outcome1"
+            return "outcome2"
 
 class IdleState(State):
     def __init__(self) -> None:
@@ -78,20 +85,20 @@ class StateMachineNode(Node):
         super().__init__("state_machine_node")
 
         #subscriber
-        self.button_cmd_subscriber = self.create_subscription(
-            ButtonCmd,
-            '/button_cmd',
-            self.button_cmd_callback,
-            10)
-        
+        self.button_cmd_sub = self.create_subscription(ButtonCmd,'/button_cmd',self.button_cmd_callback,10)
+        self.motion_finished_sub = self.create_subscription(Bool,'/motion_finished',self.motion_finished_callback,10)
+
         #publiher
-        self.set_home_publisher = self.create_publisher(Bool, '/set_home_cmd', 10)
+        self.set_home_pub = self.create_publisher(Bool, '/set_home_cmd', 10)
         
         #open the blackboard
         self.blackboard = Blackboard()
 
         #store publisher in blackboard 
-        self.blackboard["set_home_publisher"] = self.set_home_publisher
+        self.blackboard["set_home_publisher"] = self.set_home_pub
+
+        #store motion_finished data in blackboard
+        self.blackboard["motion_finished"] = False
 
         #init button_cmd in blackboard
         self.blackboard["button_cmd"]={
@@ -167,7 +174,6 @@ class StateMachineNode(Node):
 
 
     def button_cmd_callback(self,msg:ButtonCmd):
-
         print("inside bmc callback")
 
         self.blackboard["button_cmd"]={
@@ -177,7 +183,10 @@ class StateMachineNode(Node):
             "manual_button":msg.manual_button,
             "gripper_button":msg.gripper_button,
         }
-    
+
+    def motion_finished_callback(self,msg:Bool):
+        self.blackboard["motion_finished"] = msg.data
+
     def update_fsm(self):
         print("update_fsm")
         try:
