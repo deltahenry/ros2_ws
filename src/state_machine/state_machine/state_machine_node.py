@@ -16,13 +16,9 @@ def set_home(publisher):
     msg.data = True
     publisher.publish(msg)
 
-def state_pub(publisher,state_info):
-    msg = StateInfo()
-    msg.initialize = state_info
-    publisher.publish(msg)
 class InitializeState(State):
     def __init__(self) -> None:
-        super().__init__(["outcome1", "outcome2"])
+        super().__init__(["outcome1", "outcome2", "outcome3"])
 
     def execute(self, blackboard: Blackboard) -> str:
         yasmin.YASMIN_LOG_INFO("Executing state Initialize")
@@ -34,21 +30,19 @@ class InitializeState(State):
         print("motion_finished:",motion_finished)
 
         set_home_publisher = blackboard["set_home_publisher"]
-        state_publisher = blackboard["state_publisher"]
 
         if init_finished:
             blackboard["state_info"]["initialize"] = True
-            state_pub(state_publisher,blackboard["state_info"]["initialize"])
-            return "outcome2" #Go To Idle state
+            return "outcome1" #Go To Idle state
         else:
             if motion_finished:  #Ready to move
                 if init_buttons:
-                    set_home(set_home_publisher)
-                    return "outcome1"
+                    set_home(set_home_publisher) #move to home
+                    return "outcome3"
                 else:
-                    return "outcome1"
+                    return "outcome3"
             else:                   #still tracking
-                return "outcome1"
+                return "outcome3"
 
 class IdleState(State):
     def __init__(self) -> None:
@@ -56,15 +50,23 @@ class IdleState(State):
 
     def execute(self, blackboard: Blackboard) -> str:
         yasmin.YASMIN_LOG_INFO("Executing state Idle")
-        return "outcome3"
+        battery_line_button = blackboard["button_cmd"]["battery_line_button"]
+        blackboard["state_info"]["idle"] = True
+
+        if battery_line_button:
+            return "outcome1"  #run battery picker state
+        else:
+            return "outcome3"
         
 class BatteryPickerState(State):
     def __init__(self) -> None:
-        super().__init__(outcomes=["outcome1","outcome2"])
+        super().__init__(outcomes=["outcome1","outcome2","outcome3"])
 
     def execute(self, blackboard: Blackboard) -> str:
         yasmin.YASMIN_LOG_INFO("Executing state BatteryGripper")
-        return "outcome1"
+        blackboard["state_info"]["idle"] = False
+        blackboard["state_info"]["batterypicker"] = True
+        return "outcome3"
             
 class BatteryAssemblerState(State):
     def __init__(self) -> None:
@@ -104,13 +106,14 @@ class StateMachineNode(Node):
         #publiher
         self.set_home_pub = self.create_publisher(Bool, '/set_home_cmd', 10) #to_motion_control
         self.state_info_pub = self.create_publisher(StateInfo, '/state_info', 10) #to_gui_node
+        # self.position_cmd_pub = self.create_publisher()
+
         
         #open the blackboard
         self.blackboard = Blackboard()
 
         #store publisher in blackboard 
         self.blackboard["set_home_publisher"] = self.set_home_pub
-        self.blackboard["state_publisher"] = self.state_info_pub
         
         #store init_finished data in blackboard
         self.blackboard["init_finished"] = False
@@ -146,8 +149,9 @@ class StateMachineNode(Node):
             "Initialize",
             InitializeState(),  # No need to pass publisher anymore
             transitions={
-                "outcome1": "Stop",
-                "outcome2": "Idle",
+                "outcome1": "Idle",
+                "outcome2": "Error",
+                "outcome3": "Stop",
             },
         )
 
@@ -167,6 +171,7 @@ class StateMachineNode(Node):
             transitions={
                 "outcome1": "BatteryAssembler",
                 "outcome2": "Error",
+                "outcome3": "Stop",
             },
         )
 
@@ -219,13 +224,28 @@ class StateMachineNode(Node):
     def init_finished_callback(self,msg:Bool):
         self.blackboard["init_finished"] = msg.data
 
+    def pub_state_info(self,state_info):
+        msg = StateInfo()
+        msg.initialize = state_info["initialize"]
+        msg.idle = state_info["idle"]
+        msg.batterypicker = state_info["batterypicker"]
+        msg.batteryassembler = state_info["batteryassembler"]
+        msg.error = state_info["error"]
+        msg.troubleshotting = state_info["troubleshotting"]
+
+        self.state_info_pub.publish(msg)
+
     def update_fsm(self):
+
         print("update_fsm")
         try:
             outcome = self.sm(blackboard=self.blackboard)
             yasmin.YASMIN_LOG_INFO(f"FSM current state: {outcome}")
         except Exception as e:
             self.get_logger().error(f"FSM execution error: {str(e)}")
+        #publish state info
+        # print("state_info",self.blackboard["state_info"]["initialize"])
+        self.pub_state_info(self.blackboard["state_info"])
 
 def main():
     rclpy.init()
