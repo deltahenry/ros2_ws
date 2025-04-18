@@ -64,10 +64,18 @@ class UINode(Node):
         # Publish test ButtonCmd message
         self.button_cmd.init_button = True
 
+        #maunally change butoon state when the state is idle
         if self.state_info.idle:
             self.button_cmd.battery_line_button = True
 
+        # #maunally change butoon state check when the state is battery picker and motion finished
+        # if self.state_info.batterypicker:
+        #     self.button_cmd.cabinet_line_button = True
+
+
         self.button_cmd_publisher.publish(self.button_cmd)
+
+
 
 def main(args=None):
     rclpy.init(args=args)

@@ -1,6 +1,6 @@
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Float32MultiArray, Bool
+from std_msgs.msg import Float64MultiArray, Bool
 from geometry_msgs.msg import Pose2D
 import numpy as np
 import math
@@ -18,7 +18,7 @@ class MotionControlNode(Node):
         self.v_des = self.get_parameter('v_des').get_parameter_value().double_value
         self.batch_size = self.get_parameter('batch_size').get_parameter_value().integer_value
 
-        self.current_pose = Pose2D()
+        self.current_pose = [0.0, 0.0, 0.0]
         self.current_motor_pos = [0.0, 0.0, 0.0]
         self.last_sent_batch = []
 
@@ -34,21 +34,20 @@ class MotionControlNode(Node):
         self.is_idle = True #pub ready to move(in the beginning)
 
         #subscriber
-        self.pos_cmd_sub = self.create_subscription(Pose2D, '/position_cmd', self.position_cmd_callback, 10)
         self.set_home_sub = self.create_subscription(Bool, '/set_home_cmd', self.set_home_callback, 10)
-        # self.motor_info_sub = self.create_subscription(InterfaceMultipleMotors, '/multi_motor_info', self.motor_info_callback, 10)
-        self.motor_pos_sub = self.create_subscription(Float32MultiArray, '/multi_motor_info', self.motor_info_callback, 10)
+        self.pos_cmd_sub = self.create_subscription(Float64MultiArray, '/position_cmd', self.position_cmd_callback, 10)
+        self.motor_pos_sub = self.create_subscription(Float64MultiArray, '/multi_motor_info', self.motor_info_callback, 10)
 
         #publisher
-        self.motor_pub = self.create_publisher(Float32MultiArray, '/motor_position_ref', 10)
+        self.motor_pub = self.create_publisher(Float64MultiArray, '/motor_position_ref', 10)
         self.motion_finished_pub = self.create_publisher(Bool, '/motion_finished', 10)
         self.init_finished_pub = self.create_publisher(Bool, '/init_finished', 10)
 
         self.timer = self.create_timer(1.0 / 40.0, self.timer_callback)
 
-    def position_cmd_callback(self, msg):
-        x_start, y_start, yaw_start = [360.02, 0.0, 0.2627]
-        x_end, y_end, yaw_end = msg.x, msg.y, msg.theta
+    def position_cmd_callback(self, msg:Float64MultiArray):
+        x_start, y_start, yaw_start = self.current_pose
+        x_end, y_end, yaw_end = msg.data[0], msg.data[1], msg.data[2]
 
         position_trajectory = self.generate_trajectory(x_start, y_start, yaw_start, x_end, y_end, yaw_end)
         position_trajectory = self.pad_trajectory(position_trajectory)
@@ -65,7 +64,7 @@ class MotionControlNode(Node):
             self.home_queue = home_trajectory.copy()
             self.has_new_home = True
 
-    def motor_info_callback(self, msg:Float32MultiArray):
+    def motor_info_callback(self, msg:Float64MultiArray):
         self.current_motor_pos = msg.data
 
     def generate_trajectory(self, x_start, y_start, yaw_start, x_end, y_end, yaw_end):
@@ -83,6 +82,8 @@ class MotionControlNode(Node):
         P_J1MC = np.array([[-250],[-318],[0]])
         P_J2MC = np.array([[250],[318],[0]])
 
+        motor_trajectory_batch = []
+
         for x, y, yaw in trajectory:
 
             J1_x = x + cos(yaw)*P_J1MC[0,0] - sin(yaw)*P_J1MC[1,0]
@@ -93,9 +94,14 @@ class MotionControlNode(Node):
             J2_y = y + sin(yaw)*P_J2MC[0,0] - cos(yaw)*P_J2MC[1,0]
             M2 = J2_x - sqrt(205.5**2-(abs(J2_y)-abs(P_J2MC[1,0]))**2)
 
-            print("M1,M2",M1,M2)
+            M3 = 0.0
 
-        return [[x + 0.5, y + 0.5, yaw * 10] for x, y, yaw in trajectory]
+            print("M1,M2",M1,M2)
+            motor_trajectory_batch.append([M1,M2,M3])
+        
+        print("motor",motor_trajectory_batch)
+
+        return motor_trajectory_batch
 
     def generate_home_trajectory(self, start, end):
         dM1_len, dM2_len, dM3_len = end[0] - start[0], end[1] - start[1], end[2] - start[2]
@@ -135,7 +141,7 @@ class MotionControlNode(Node):
 
         # Flatten and publish
         flat_positions = [val for pos in motor_positions for val in pos]
-        msg = Float32MultiArray()
+        msg = Float64MultiArray()
         msg.data = flat_positions
         self.motor_pub.publish(msg)
         self.get_logger().info(f"Published batch: {flat_positions}")
@@ -192,7 +198,7 @@ class MotionControlNode(Node):
                 self.motion_finished_pub.publish(Bool(data=False))
 
         if self.is_idle and not self.has_new_home and not self.has_new_position:
-            print("ready")
+            # print("ready")
             self.motion_finished_pub.publish(Bool(data=True))
 
 def main(args=None):

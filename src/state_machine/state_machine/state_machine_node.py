@@ -11,9 +11,14 @@ from std_msgs.msg import String,Float64MultiArray,Bool
 from custom_msgs.msg import StateInfo, ButtonCmd,PoseIncrement,Finished
 
 
-def set_home(publisher):
+def set_home(set_home_publisher):
     msg = Bool()
     msg.data = True
+    set_home_publisher.publish(msg)
+
+def position_cmd(publisher):
+    msg = Float64MultiArray()
+    msg.data =[209.0,0.0,0.0]
     publisher.publish(msg)
 
 class InitializeState(State):
@@ -64,9 +69,21 @@ class BatteryPickerState(State):
 
     def execute(self, blackboard: Blackboard) -> str:
         yasmin.YASMIN_LOG_INFO("Executing state BatteryGripper")
+        motion_finished = blackboard["motion_finished"]
+        position_cmd_publisher = blackboard["position_cmd_publisher"]
+        cabinet_line_button = blackboard["button_cmd"]["cabinet_line_button"]
+
         blackboard["state_info"]["idle"] = False
         blackboard["state_info"]["batterypicker"] = True
-        return "outcome3"
+
+        if cabinet_line_button:
+            return "outcome1" #run battery passembler state
+        else:
+            if motion_finished:
+                position_cmd(position_cmd_publisher) #publish position cmd
+                return "outcome3"
+            else:
+                return "outcome3"
             
 class BatteryAssemblerState(State):
     def __init__(self) -> None:
@@ -106,7 +123,7 @@ class StateMachineNode(Node):
         #publiher
         self.set_home_pub = self.create_publisher(Bool, '/set_home_cmd', 10) #to_motion_control
         self.state_info_pub = self.create_publisher(StateInfo, '/state_info', 10) #to_gui_node
-        # self.position_cmd_pub = self.create_publisher()
+        self.position_cmd_pub = self.create_publisher(Float64MultiArray,'position_cmd', 10)
 
         
         #open the blackboard
@@ -114,11 +131,10 @@ class StateMachineNode(Node):
 
         #store publisher in blackboard 
         self.blackboard["set_home_publisher"] = self.set_home_pub
+        self.blackboard["position_cmd_publisher"] = self.position_cmd_pub
         
-        #store init_finished data in blackboard
+        #store finished data in blackboard
         self.blackboard["init_finished"] = False
-
-        #store motion_finished data in blackboard
         self.blackboard["motion_finished"] = False
 
         #init button_cmd in blackboard
