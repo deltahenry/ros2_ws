@@ -18,9 +18,13 @@ class MotionControlNode(Node):
         self.v_des = self.get_parameter('v_des').get_parameter_value().double_value
         self.batch_size = self.get_parameter('batch_size').get_parameter_value().integer_value
 
+        self.motor_home_position = [345.0, 345.0, 0.0]
+        self.center_position = [345.0, 0.0, 0.0]
         self.current_pose = [0.0, 0.0, 0.0]
         self.current_motor_pos = [0.0, 0.0, 0.0]
+
         self.last_sent_batch = []
+
 
         self.position_queue = []
         self.home_queue = []
@@ -50,19 +54,14 @@ class MotionControlNode(Node):
         self.timer = self.create_timer(1.0 / 40.0, self.timer_callback)
     
     def init_motors_info(self):
-        self.motors_info = InterfaceMultipleMotors()
-        self.motors_info.quantity = 3
-        self.motors_info.motor_info = [InterfaceSingleMotor() for _ in range(self.motors_info.quantity)]
-        self.motors_info.motor_info[0].id = 1
-        self.motors_info.motor_info[0].fb_position = 0.0
-        self.motors_info.motor_info[1].id = 2
-        self.motors_info.motor_info[1].fb_position = 0.0
-        self.motors_info.motor_info[2].id = 3
-        self.motors_info.motor_info[2].fb_position = 0.0
+        self.M1_fb_pos = 0.0
+        self.M2_fb_pos = 0.0
+        self.M3_fb_pos = 0.0
 
     def position_cmd_callback(self, msg:Float64MultiArray):
         x_start, y_start, yaw_start = self.current_pose
         x_end, y_end, yaw_end = msg.data[0], msg.data[1], msg.data[2]
+        self.pos_cmd = [x_end, y_end, yaw_end]
 
         position_trajectory = self.generate_trajectory(x_start, y_start, yaw_start, x_end, y_end, yaw_end)
         position_trajectory = self.pad_trajectory(position_trajectory)
@@ -71,18 +70,19 @@ class MotionControlNode(Node):
 
     def set_home_callback(self, msg):
         if msg.data:
-            home_position = [0.0, 0.0, 0.0]
             start = self.current_motor_pos
-            home_trajectory = self.generate_home_trajectory(start, home_position)
+            home_trajectory = self.generate_home_trajectory(start, self.motor_home_position)
             home_trajectory = self.pad_trajectory(home_trajectory)  #10
             # print("home.tra:",home_trajectory)
             self.home_queue = home_trajectory.copy()
             self.has_new_home = True
 
     def motors_info_callback(self, msg:InterfaceMultipleMotors):
-        # print("NON")
-        print(msg.motor_info[0].fb_position)
-
+        self.M1_fb_pos= msg.motor_info[0].fb_position
+        self.M2_fb_pos= msg.motor_info[1].fb_position
+        self.M3_fb_pos= msg.motor_info[2].fb_position
+        self.current_motor_pos = [msg.motor_info[0].fb_position,msg.motor_info[1].fb_position,msg.motor_info[2].fb_position]
+        # print(self.current_motor_pos)
 
     def generate_trajectory(self, x_start, y_start, yaw_start, x_end, y_end, yaw_end):
         dx, dy, dyaw = x_end - x_start, y_end - y_start, yaw_end - yaw_start
@@ -113,7 +113,7 @@ class MotionControlNode(Node):
 
             M3 = 0.0
 
-            print("M1,M2",M1,M2)
+            # print("M1,M2",M1,M2)
             motor_trajectory_batch.append([M1,M2,M3])
         
         print("motor",motor_trajectory_batch)
@@ -133,6 +133,8 @@ class MotionControlNode(Node):
             last_point = trajectory[-1]
             needed = self.batch_size - (len(trajectory) % self.batch_size)
             trajectory += [last_point] * needed
+
+            # print("trajectory",trajectory)
         return trajectory
 
     def publish_motor_positions(self):
@@ -161,7 +163,7 @@ class MotionControlNode(Node):
         msg = Float64MultiArray()
         msg.data = flat_positions
         self.motor_pub.publish(msg)
-        self.get_logger().info(f"Published batch: {flat_positions}")
+        # self.get_logger().info(f"Published batch: {flat_positions}")
 
         # # Only check for completion AFTER publishing
         # if queue_type == 'home' and len(self.home_queue) == 0:
@@ -202,6 +204,8 @@ class MotionControlNode(Node):
                 self.init_finished_pub.publish(Bool(data=True))
                 self.check_home_motion = False          
                 self.is_idle =True
+                self.current_pose = self.center_position          #update the current pose = home position
+                print("self.current_pose",self.current_pose)
             else: 
                 self.motion_finished_pub.publish(Bool(data=False))
 
@@ -211,6 +215,8 @@ class MotionControlNode(Node):
                 self.motion_finished_pub.publish(Bool(data=True))  #home position is arrive
                 self.check_position_motion = False          
                 self.is_idle =True
+                self.current_pose = self.pos_cmd         #update the current pose = position_cmd
+                print("self.current_pose",self.current_pose)
             else: 
                 self.motion_finished_pub.publish(Bool(data=False))
 

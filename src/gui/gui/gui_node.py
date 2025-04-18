@@ -26,6 +26,7 @@ class UINode(Node):
 
         # Timer
         self.timer = self.create_timer(0.05, self.timer_callback)  #20Hz
+        self.count = 0
 
     def init_button(self):
         """Initializes the default button cmd."""
@@ -55,9 +56,9 @@ class UINode(Node):
         self.motors_info.quantity = 3
         self.motors_info.motor_info = [InterfaceSingleMotor() for _ in range(self.motors_info.quantity)]
         self.motors_info.motor_info[0].id = 1
-        self.motors_info.motor_info[0].fb_position = 0.0
+        self.motors_info.motor_info[0].fb_position = 330.0
         self.motors_info.motor_info[1].id = 2
-        self.motors_info.motor_info[1].fb_position = 0.0
+        self.motors_info.motor_info[1].fb_position = 400.0
         self.motors_info.motor_info[2].id = 3
         self.motors_info.motor_info[2].fb_position = 0.0
         return self.motors_info
@@ -82,13 +83,22 @@ class UINode(Node):
         #maunally change butoon state when the state is idle
         if self.state_info.idle:
             self.button_cmd.battery_line_button = True
-    
+
+        if self.count >= 100:
+            self.motors_info.motor_info[0].fb_position = 345.0
+            self.motors_info.motor_info[1].fb_position = 345.0
+            if self.count >= 300:
+                self.motors_info.motor_info[0].fb_position = 164.5
+                self.motors_info.motor_info[1].fb_position = 253.5
+                self.motors_info.motor_info[2].fb_position = 0.0
+
         # #maunally change butoon state check when the state is battery picker and motion finished
         # if self.state_info.batterypicker:
         #     self.button_cmd.cabinet_line_button = True
         
         self.button_cmd_publisher.publish(self.button_cmd)
         self.motors_info_publisher.publish(self.motors_info) #fake
+        self.count+=1
 
 def main(args=None):
     rclpy.init(args=args)

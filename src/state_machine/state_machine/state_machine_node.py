@@ -8,7 +8,7 @@ from yasmin import State, Blackboard, StateMachine
 from yasmin_ros import set_ros_loggers
 from yasmin_viewer import YasminViewerPub
 from std_msgs.msg import String,Float64MultiArray,Bool
-from custom_msgs.msg import StateInfo, ButtonCmd,PoseIncrement,InterfaceMultipleMotors,InterfaceSingleMotor
+from custom_msgs.msg import StateInfo,ButtonCmd,PoseIncrement,InterfaceMultipleMotors,InterfaceSingleMotor
 
 
 def set_home(set_home_publisher):
@@ -92,6 +92,7 @@ class BatteryPickerState(State):
             else:
                 if motion_finished:
                     position_cmd(position_cmd_publisher) #publish position cmd
+                    print("123")
                     return "outcome3"
                 else:
                     return "outcome3"
