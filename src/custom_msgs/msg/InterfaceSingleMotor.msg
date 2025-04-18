@@ -1,6 +1,6 @@
 string	device_type		# model name
 int16 	id				# motor id
-string 	device_state	# motor state
+bool 	device_state	# motor state
 string 	operating_mode  # motor operating mode
 string	error_code		# motor error code
 float32 voltage			# motor voltage (V)

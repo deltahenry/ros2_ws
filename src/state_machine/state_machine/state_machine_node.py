@@ -8,7 +8,7 @@ from yasmin import State, Blackboard, StateMachine
 from yasmin_ros import set_ros_loggers
 from yasmin_viewer import YasminViewerPub
 from std_msgs.msg import String,Float64MultiArray,Bool
-from custom_msgs.msg import StateInfo, ButtonCmd,PoseIncrement,Finished
+from custom_msgs.msg import StateInfo, ButtonCmd,PoseIncrement,InterfaceMultipleMotors,InterfaceSingleMotor
 
 
 def set_home(set_home_publisher):
@@ -30,25 +30,29 @@ class InitializeState(State):
         init_buttons = blackboard["button_cmd"]["init_button"]
         motion_finished = blackboard["motion_finished"]
         init_finished = blackboard["init_finished"]
+        motor_ok = blackboard["motor_ok"]
 
         print("init_buttons:",init_buttons)
         print("motion_finished:",motion_finished)
-
+        print("motor_state:",blackboard["motor_ok"])
         set_home_publisher = blackboard["set_home_publisher"]
 
-        if init_finished:
-            blackboard["state_info"]["initialize"] = True
-            return "outcome1" #Go To Idle state
+        if motor_ok:
+            if init_finished:
+                blackboard["state_info"]["initialize"] = True
+                return "outcome1" #Go To Idle state
+            else:
+                if motion_finished:  #Ready to move
+                    if init_buttons:
+                        set_home(set_home_publisher) #move to home
+                        return "outcome3"
+                    else:
+                        return "outcome3"
+                else:                   #still tracking
+                    return "outcome3"
         else:
-            if motion_finished:  #Ready to move
-                if init_buttons:
-                    set_home(set_home_publisher) #move to home
-                    return "outcome3"
-                else:
-                    return "outcome3"
-            else:                   #still tracking
-                return "outcome3"
-
+            print("error")
+            return "outcome3"
 class IdleState(State):
     def __init__(self) -> None:
         super().__init__(outcomes=["outcome1","outcome2","outcome3"])
@@ -57,10 +61,15 @@ class IdleState(State):
         yasmin.YASMIN_LOG_INFO("Executing state Idle")
         battery_line_button = blackboard["button_cmd"]["battery_line_button"]
         blackboard["state_info"]["idle"] = True
+        motor_ok = blackboard["motor_ok"]
 
-        if battery_line_button:
-            return "outcome1"  #run battery picker state
+        if motor_ok:
+            if battery_line_button:
+                return "outcome1"  #run battery picker state
+            else:
+                return "outcome3"
         else:
+            print("error")
             return "outcome3"
         
 class BatteryPickerState(State):
@@ -72,18 +81,23 @@ class BatteryPickerState(State):
         motion_finished = blackboard["motion_finished"]
         position_cmd_publisher = blackboard["position_cmd_publisher"]
         cabinet_line_button = blackboard["button_cmd"]["cabinet_line_button"]
+        motor_ok = blackboard["motor_ok"]
 
         blackboard["state_info"]["idle"] = False
         blackboard["state_info"]["batterypicker"] = True
-
-        if cabinet_line_button:
-            return "outcome1" #run battery passembler state
-        else:
-            if motion_finished:
-                position_cmd(position_cmd_publisher) #publish position cmd
-                return "outcome3"
+        
+        if motor_ok:
+            if cabinet_line_button:
+                return "outcome1" #run battery passembler state
             else:
-                return "outcome3"
+                if motion_finished:
+                    position_cmd(position_cmd_publisher) #publish position cmd
+                    return "outcome3"
+                else:
+                    return "outcome3"
+        else:
+            print("error")
+            return "outcome3"
             
 class BatteryAssemblerState(State):
     def __init__(self) -> None:
@@ -125,9 +139,15 @@ class StateMachineNode(Node):
         self.state_info_pub = self.create_publisher(StateInfo, '/state_info', 10) #to_gui_node
         self.position_cmd_pub = self.create_publisher(Float64MultiArray,'position_cmd', 10)
 
-        
-        #open the blackboard
+        #init motor_state_info
+        self.motor_ok = False
+        self.init_motors_info()
+
+        #open the blackboard for shareing data in the FSM
         self.blackboard = Blackboard()
+
+        #share device state to FSM
+        self.blackboard["motor_ok"] = self.motor_ok
 
         #store publisher in blackboard 
         self.blackboard["set_home_publisher"] = self.set_home_pub
@@ -136,6 +156,7 @@ class StateMachineNode(Node):
         #store finished data in blackboard
         self.blackboard["init_finished"] = False
         self.blackboard["motion_finished"] = False
+
 
         #init button_cmd in blackboard
         self.blackboard["button_cmd"]={
@@ -222,6 +243,16 @@ class StateMachineNode(Node):
         # Timer to periodically publish data to ui_node
         self.timer = self.create_timer(1.0, self.update_fsm)
 
+    def init_motors_info(self):
+        self.motors_info = InterfaceMultipleMotors
+        self.motors_info.quantity = 3
+        self.motors_info.motor_info = [InterfaceSingleMotor() for _ in range(self.motors_info.quantity)]
+        self.motors_info.motor_info[0].id = 1
+        self.motors_info.motor_info[0].device_state = True
+        self.motors_info.motor_info[1].id = 2
+        self.motors_info.motor_info[1].device_state = True
+        self.motors_info.motor_info[2].id = 3
+        self.motors_info.motor_info[2].device_state = True
 
     def button_cmd_callback(self,msg:ButtonCmd):
         print("inside bmc callback")
@@ -235,7 +266,7 @@ class StateMachineNode(Node):
         }
 
     def motion_finished_callback(self,msg:Bool):
-        self.blackboard["motion_finished"] = msg.data
+        self.blackboard["motion_finished"] = msg.data  #False = the motor is moving ,can't publish any cmd to motion_control_node
 
     def init_finished_callback(self,msg:Bool):
         self.blackboard["init_finished"] = msg.data
@@ -248,10 +279,23 @@ class StateMachineNode(Node):
         msg.batteryassembler = state_info["batteryassembler"]
         msg.error = state_info["error"]
         msg.troubleshotting = state_info["troubleshotting"]
-
         self.state_info_pub.publish(msg)
 
+    def check_device_state(self):
+        #check motor:
+        for i in range(self.motors_info.quantity):
+            if self.motors_info.motor_info[i].device_state:
+                all_ok = True
+                print(f"M{i+1} is ok")
+            else:
+                print(f"M{i+1} is failed")
+                all_ok = False
+        return all_ok
+            
     def update_fsm(self):
+        self.motor_ok = self.check_device_state()
+        self.blackboard["motor_ok"] = self.motor_ok
+        print("motor_state:",self.motor_ok)
 
         print("update_fsm")
         try:
@@ -259,8 +303,7 @@ class StateMachineNode(Node):
             yasmin.YASMIN_LOG_INFO(f"FSM current state: {outcome}")
         except Exception as e:
             self.get_logger().error(f"FSM execution error: {str(e)}")
-        #publish state info
-        # print("state_info",self.blackboard["state_info"]["initialize"])
+        #publish FSM state to gui_node
         self.pub_state_info(self.blackboard["state_info"])
 
 def main():

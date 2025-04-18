@@ -9,7 +9,7 @@ class UINode(Node):
 
         # Publishers
         self.button_cmd_publisher = self.create_publisher(ButtonCmd, '/button_cmd', 10)
-        self.a_publisher = self.create_publisher(InterfaceMultipleMotors,'/multi_motor_info',10)
+        self.motors_info_publisher = self.create_publisher(InterfaceMultipleMotors,'/multi_motor_info',10)  #fake
 
         #Subscribers
         self.state_info_subscriber = self.create_subscription(StateInfo, '/state_info', self.state_info_callback ,10)
@@ -20,6 +20,9 @@ class UINode(Node):
 
         # Initialize state
         self.state_info = self.init_state()
+
+        #init motor state
+        self.motors_info = self.init_motors_info()
 
         # Timer
         self.timer = self.create_timer(0.05, self.timer_callback)  #20Hz
@@ -47,6 +50,18 @@ class UINode(Node):
         
         return state_info_msg
     
+    def init_motors_info(self):
+        self.motors_info = InterfaceMultipleMotors()
+        self.motors_info.quantity = 3
+        self.motors_info.motor_info = [InterfaceSingleMotor() for _ in range(self.motors_info.quantity)]
+        self.motors_info.motor_info[0].id = 1
+        self.motors_info.motor_info[0].fb_position = 0.0
+        self.motors_info.motor_info[1].id = 2
+        self.motors_info.motor_info[1].fb_position = 0.0
+        self.motors_info.motor_info[2].id = 3
+        self.motors_info.motor_info[2].fb_position = 0.0
+        return self.motors_info
+    
     def state_info_callback(self,msg:StateInfo):
         self.state_info.initialize = msg.initialize  
         self.state_info.idle = msg.idle  
@@ -67,15 +82,13 @@ class UINode(Node):
         #maunally change butoon state when the state is idle
         if self.state_info.idle:
             self.button_cmd.battery_line_button = True
-
+    
         # #maunally change butoon state check when the state is battery picker and motion finished
         # if self.state_info.batterypicker:
         #     self.button_cmd.cabinet_line_button = True
-
-
+        
         self.button_cmd_publisher.publish(self.button_cmd)
-
-
+        self.motors_info_publisher.publish(self.motors_info) #fake
 
 def main(args=None):
     rclpy.init(args=args)

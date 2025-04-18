@@ -36,14 +36,29 @@ class MotionControlNode(Node):
         #subscriber
         self.set_home_sub = self.create_subscription(Bool, '/set_home_cmd', self.set_home_callback, 10)
         self.pos_cmd_sub = self.create_subscription(Float64MultiArray, '/position_cmd', self.position_cmd_callback, 10)
-        self.motor_pos_sub = self.create_subscription(Float64MultiArray, '/multi_motor_info', self.motor_info_callback, 10)
+        self.motors_info_sub = self.create_subscription(InterfaceMultipleMotors,'/multi_motor_info',self.motors_info_callback,10)
 
         #publisher
         self.motor_pub = self.create_publisher(Float64MultiArray, '/motor_position_ref', 10)
         self.motion_finished_pub = self.create_publisher(Bool, '/motion_finished', 10)
         self.init_finished_pub = self.create_publisher(Bool, '/init_finished', 10)
 
+        #init motor_state_info
+        self.motor_ok = False
+        self.init_motors_info()
+
         self.timer = self.create_timer(1.0 / 40.0, self.timer_callback)
+    
+    def init_motors_info(self):
+        self.motors_info = InterfaceMultipleMotors()
+        self.motors_info.quantity = 3
+        self.motors_info.motor_info = [InterfaceSingleMotor() for _ in range(self.motors_info.quantity)]
+        self.motors_info.motor_info[0].id = 1
+        self.motors_info.motor_info[0].fb_position = 0.0
+        self.motors_info.motor_info[1].id = 2
+        self.motors_info.motor_info[1].fb_position = 0.0
+        self.motors_info.motor_info[2].id = 3
+        self.motors_info.motor_info[2].fb_position = 0.0
 
     def position_cmd_callback(self, msg:Float64MultiArray):
         x_start, y_start, yaw_start = self.current_pose
@@ -64,8 +79,10 @@ class MotionControlNode(Node):
             self.home_queue = home_trajectory.copy()
             self.has_new_home = True
 
-    def motor_info_callback(self, msg:Float64MultiArray):
-        self.current_motor_pos = msg.data
+    def motors_info_callback(self, msg:InterfaceMultipleMotors):
+        # print("NON")
+        print(msg.motor_info[0].fb_position)
+
 
     def generate_trajectory(self, x_start, y_start, yaw_start, x_end, y_end, yaw_end):
         dx, dy, dyaw = x_end - x_start, y_end - y_start, yaw_end - yaw_start
