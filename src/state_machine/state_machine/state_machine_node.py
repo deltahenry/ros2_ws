@@ -55,7 +55,7 @@ class InitializeState(State):
             return "outcome3"
 class IdleState(State):
     def __init__(self) -> None:
-        super().__init__(outcomes=["outcome1","outcome2","outcome3"])
+        super().__init__(outcomes=["outcome1","outcome2","outcome3","outcome4"])
 
     def execute(self, blackboard: Blackboard) -> str:
         yasmin.YASMIN_LOG_INFO("Executing state Idle")
@@ -64,13 +64,18 @@ class IdleState(State):
         motor_ok = blackboard["motor_ok"]
 
         if motor_ok:
-            if battery_line_button:
-                return "outcome1"  #run battery picker state
+            if blackboard["state_info"]["batterypicker"]: #already changed to picker state
+                return "outcome1"
+            elif blackboard["state_info"]["batteryassembler"]: #already changed to asselbler state
+                return "outcome2"
             else:
-                return "outcome3"
+                if battery_line_button:
+                    return "outcome1"  #run battery picker state
+                else:
+                    return "outcome4"
         else:
             print("error")
-            return "outcome3"
+            return "outcome4"
         
 class BatteryPickerState(State):
     def __init__(self) -> None:
@@ -88,7 +93,9 @@ class BatteryPickerState(State):
         
         if motor_ok:
             if cabinet_line_button:
-                return "outcome1" #run battery passembler state
+                blackboard["state_info"]["batterypicker"] = False
+                blackboard["state_info"]["batteryassembler"] = True
+                return "outcome1" #run battery assembler state
             else:
                 if motion_finished:
                     position_cmd(position_cmd_publisher) #publish position cmd
@@ -102,11 +109,29 @@ class BatteryPickerState(State):
             
 class BatteryAssemblerState(State):
     def __init__(self) -> None:
-        super().__init__(outcomes=["outcome1","outcome2"])
+        super().__init__(outcomes=["outcome1","outcome2","outcome3"])
 
     def execute(self, blackboard: Blackboard) -> str:
         yasmin.YASMIN_LOG_INFO("Executing state BatteryAssembler")
-        return "outcome1"
+        motion_finished = blackboard["motion_finished"]
+        position_cmd_publisher = blackboard["position_cmd_publisher"]
+        cabinet_line_button = blackboard["button_cmd"]["cabinet_line_button"]
+        motor_ok = blackboard["motor_ok"]
+
+        if motor_ok:
+            if cabinet_line_button:
+                if motion_finished:
+                    position_cmd(position_cmd_publisher) #publish position cmd
+                    print("123")
+                    return "outcome3"
+                else:
+                    return "outcome3"
+            else:    #cabine off assemble finished
+                blackboard["state_info"]["batteryassembler"] = False  
+                return "outcome1"  #return to idle state
+        else:
+            print("error")
+            return "outcome3"
 
 class ErrorState(State):
     def __init__(self) -> None:
@@ -198,8 +223,9 @@ class StateMachineNode(Node):
             IdleState(),
             transitions={
                 "outcome1": "BatteryPicker",
-                "outcome2": "Error",
-                "outcome3": "Stop",
+                "outcome2": "BatteryAssembler",
+                "outcome3": "Error",
+                "outcome4": "Stop",
             },
         )
 
@@ -219,6 +245,7 @@ class StateMachineNode(Node):
             transitions={
                 "outcome1": "Idle",
                 "outcome2": "Error",
+                "outcome3": "Stop"
             },
         )
 

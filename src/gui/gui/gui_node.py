@@ -91,6 +91,7 @@ class UINode(Node):
                 self.motors_info.motor_info[0].fb_position = 164.5
                 self.motors_info.motor_info[1].fb_position = 253.5
                 self.motors_info.motor_info[2].fb_position = 0.0
+                self.button_cmd.cabinet_line_button = True
 
         # #maunally change butoon state check when the state is battery picker and motion finished
         # if self.state_info.batterypicker:
