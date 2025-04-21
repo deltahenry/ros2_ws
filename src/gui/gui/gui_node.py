@@ -87,6 +87,7 @@ class UINode(Node):
         if self.count >= 100:
             self.motors_info.motor_info[0].fb_position = 345.0
             self.motors_info.motor_info[1].fb_position = 345.0
+            self.motors_info.motor_info[2].fb_position = 0.0
             if self.count >= 300:
                 self.motors_info.motor_info[0].fb_position = 164.5
                 self.motors_info.motor_info[1].fb_position = 253.5

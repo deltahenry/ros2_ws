@@ -18,10 +18,10 @@ class MotionControlNode(Node):
         self.v_des = self.get_parameter('v_des').get_parameter_value().double_value
         self.batch_size = self.get_parameter('batch_size').get_parameter_value().integer_value
 
-        self.motor_home_position = [345.0, 345.0, 0.0]
-        self.center_position = [345.0, 0.0, 0.0]
-        self.current_pose = [0.0, 0.0, 0.0]
-        self.current_motor_pos = [0.0, 0.0, 0.0]
+        self.motor_home_position = [345.0, 345.0, 0.0] #m1 len ...
+        self.center_position = [345.0, 0.0, 0.0]#x y yaw
+        self.current_pose = [0.0, 0.0, 0.0]#x y yaw
+        self.current_motor_pos = [0.0, 0.0, 0.0]#m1 len ...
 
         self.last_sent_batch = []
 
@@ -39,11 +39,11 @@ class MotionControlNode(Node):
 
         #subscriber
         self.set_home_sub = self.create_subscription(Bool, '/set_home_cmd', self.set_home_callback, 10)
-        self.pos_cmd_sub = self.create_subscription(Float64MultiArray, '/position_cmd', self.position_cmd_callback, 10)
+        self.pos_cmd_sub = self.create_subscription(Float64MultiArray, '/position_cmd', self.position_cmd_callback, 10)    
         self.motors_info_sub = self.create_subscription(InterfaceMultipleMotors,'/multi_motor_info',self.motors_info_callback,10)
 
         #publisher
-        self.motor_pub = self.create_publisher(Float64MultiArray, '/motor_position_ref', 10)
+        self.motor_pub = self.create_publisher(Float64MultiArray, '/motor_position_ref', 10) #motor_node
         self.motion_finished_pub = self.create_publisher(Bool, '/motion_finished', 10)
         self.init_finished_pub = self.create_publisher(Bool, '/init_finished', 10)
 
@@ -67,6 +67,7 @@ class MotionControlNode(Node):
         position_trajectory = self.pad_trajectory(position_trajectory)
         self.position_queue = position_trajectory.copy()
         self.has_new_position = True
+        print(self.pos_cmd)
 
     def set_home_callback(self, msg):
         if msg.data:
@@ -111,7 +112,7 @@ class MotionControlNode(Node):
             J2_y = y + sin(yaw)*P_J2MC[0,0] - cos(yaw)*P_J2MC[1,0]
             M2 = J2_x - sqrt(205.5**2-(abs(J2_y)-abs(P_J2MC[1,0]))**2)
 
-            M3 = 0.0
+            M3 = y
 
             # print("M1,M2",M1,M2)
             motor_trajectory_batch.append([M1,M2,M3])

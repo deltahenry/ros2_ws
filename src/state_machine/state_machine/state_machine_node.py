@@ -16,9 +16,12 @@ def set_home(set_home_publisher):
     msg.data = True
     set_home_publisher.publish(msg)
 
-def position_cmd(publisher):
+def position_cmd(publisher,x_cmd,y_cmd,yaw_cmd):
     msg = Float64MultiArray()
-    msg.data =[209.0,0.0,0.0]
+    msg.data =[x_cmd,y_cmd,yaw_cmd]
+    print("X_cmd",x_cmd)
+    print("Y_cmd",y_cmd)
+    print("Yaw_cmd",yaw_cmd)
     publisher.publish(msg)
 
 class InitializeState(State):
@@ -40,6 +43,7 @@ class InitializeState(State):
         if motor_ok:
             if init_finished:
                 blackboard["state_info"]["initialize"] = True
+                blackboard["state_info"]["idle"] = True
                 return "outcome1" #Go To Idle state
             else:
                 if motion_finished:  #Ready to move
@@ -52,6 +56,8 @@ class InitializeState(State):
                     return "outcome3"
         else:
             print("error")
+            blackboard["state_info"]["initialize"] = False
+            blackboard["state_info"]["error"] = True
             return "outcome3"
 class IdleState(State):
     def __init__(self) -> None:
@@ -60,22 +66,28 @@ class IdleState(State):
     def execute(self, blackboard: Blackboard) -> str:
         yasmin.YASMIN_LOG_INFO("Executing state Idle")
         battery_line_button = blackboard["button_cmd"]["battery_line_button"]
-        blackboard["state_info"]["idle"] = True
         motor_ok = blackboard["motor_ok"]
 
         if motor_ok:
             if blackboard["state_info"]["batterypicker"]: #already changed to picker state
+                blackboard["state_info"]["idle"] = False
                 return "outcome1"
             elif blackboard["state_info"]["batteryassembler"]: #already changed to asselbler state
+                blackboard["state_info"]["idle"] = False
                 return "outcome2"
             else:
                 if battery_line_button:
+                    blackboard["state_info"]["idle"] = False
+                    blackboard["state_info"]["batterypicker"] = True
                     return "outcome1"  #run battery picker state
                 else:
                     return "outcome4"
         else:
             print("error")
-            return "outcome4"
+            blackboard["state_info"]["initialize"] = False
+            blackboard["state_info"]["idle"] = False
+            blackboard["state_info"]["error"] = True
+            return "outcome3"
         
 class BatteryPickerState(State):
     def __init__(self) -> None:
@@ -87,9 +99,9 @@ class BatteryPickerState(State):
         position_cmd_publisher = blackboard["position_cmd_publisher"]
         cabinet_line_button = blackboard["button_cmd"]["cabinet_line_button"]
         motor_ok = blackboard["motor_ok"]
-
-        blackboard["state_info"]["idle"] = False
-        blackboard["state_info"]["batterypicker"] = True
+        x_cmd = blackboard["pos_cmd"]["x"] 
+        y_cmd = blackboard["pos_cmd"]["y"] 
+        yaw_cmd = blackboard["pos_cmd"]["yaw"] 
         
         if motor_ok:
             if cabinet_line_button:
@@ -98,13 +110,16 @@ class BatteryPickerState(State):
                 return "outcome1" #run battery assembler state
             else:
                 if motion_finished:
-                    position_cmd(position_cmd_publisher) #publish position cmd
+                    position_cmd(position_cmd_publisher,x_cmd,y_cmd,yaw_cmd) #publish position cmd
                     print("123")
                     return "outcome3"
                 else:
                     return "outcome3"
         else:
             print("error")
+            blackboard["state_info"]["initialize"] = False
+            blackboard["state_info"]["batterypicker"] = False
+            blackboard["state_info"]["error"] = True
             return "outcome3"
             
 class BatteryAssemblerState(State):
@@ -117,40 +132,58 @@ class BatteryAssemblerState(State):
         position_cmd_publisher = blackboard["position_cmd_publisher"]
         cabinet_line_button = blackboard["button_cmd"]["cabinet_line_button"]
         motor_ok = blackboard["motor_ok"]
+        x_cmd = blackboard["pos_cmd"]["x"] 
+        y_cmd = blackboard["pos_cmd"]["y"] 
+        yaw_cmd = blackboard["pos_cmd"]["yaw"] 
 
         if motor_ok:
-            if cabinet_line_button:
+            if not cabinet_line_button:    #cabinet off assemble finished
+                blackboard["state_info"]["batteryassembler"] = False  
+                blackboard["state_info"]["idle"] = True
+                return "outcome1"  #return to idle state
+            else:
                 if motion_finished:
-                    position_cmd(position_cmd_publisher) #publish position cmd
+                    position_cmd(position_cmd_publisher,x_cmd,y_cmd,yaw_cmd) #publish position cmd
                     print("123")
                     return "outcome3"
                 else:
                     return "outcome3"
-            else:    #cabine off assemble finished
-                blackboard["state_info"]["batteryassembler"] = False  
-                return "outcome1"  #return to idle state
         else:
             print("error")
+            blackboard["state_info"]["initialize"] = False
+            blackboard["state_info"]["batteryassembler"] = False
+            blackboard["state_info"]["error"] = True
             return "outcome3"
 
 class ErrorState(State):
     def __init__(self) -> None:
-        super().__init__(outcomes=["outcome1"])
+        super().__init__(outcomes=["outcome1","outcome2"])
 
     def execute(self, blackboard: Blackboard) -> str:
         yasmin.YASMIN_LOG_INFO("Executing state Error")
-        return "outcome1"
+        manual_button = blackboard["button_cmd"]["manual_button"]
+
+        if manual_button:
+            blackboard["state_info"]["error"] = False
+            blackboard["state_info"]["troubleshotting"] = True
+            return "outcome1"
+        else:
+            return "outcome2"
     
 class TroubleshootingState(State):
     def __init__(self) -> None:
-        super().__init__(outcomes=["outcome1"])
+        super().__init__(outcomes=["outcome1","outcome2"])
 
     def execute(self, blackboard: Blackboard) -> str:
         yasmin.YASMIN_LOG_INFO("Executing state Error")
-
         yasmin.YASMIN_LOG_INFO(blackboard["Initialize_str"])
-        return "outcome1"
+        init_buttons = blackboard["button_cmd"]["init_button"]
 
+        if init_buttons:
+            blackboard["state_info"]["initialize"] = True
+            return "outcome1"
+        else:
+            return "outcome2"
 class StateMachineNode(Node):
     def __init__(self):
         super().__init__("state_machine_node")
@@ -159,18 +192,32 @@ class StateMachineNode(Node):
         self.button_cmd_sub = self.create_subscription(ButtonCmd,'/button_cmd',self.button_cmd_callback,10)
         self.motion_finished_sub = self.create_subscription(Bool,'/motion_finished',self.motion_finished_callback,10)
         self.init_finished_sub = self.create_subscription(Bool,'/init_finished',self.init_finished_callback,10)
+        self.pose_increment_sub = self.create_subscription(PoseIncrement,'pose_increment',self.pose_increment_callback,10)
 
         #publiher
         self.set_home_pub = self.create_publisher(Bool, '/set_home_cmd', 10) #to_motion_control
         self.state_info_pub = self.create_publisher(StateInfo, '/state_info', 10) #to_gui_node
         self.position_cmd_pub = self.create_publisher(Float64MultiArray,'position_cmd', 10)
+        self.servo_switch_pub = self.create_publisher(Bool, '/servo_switch', 10) #to_motor node
 
         #init motor_state_info
         self.motor_ok = False
         self.init_motors_info()
 
+        #init pos_cmd
+        self.x = 209.0
+        self.y = 0.0
+        self.yaw = 0.0
+
         #open the blackboard for shareing data in the FSM
         self.blackboard = Blackboard()
+
+        #share pos_cmd to blackboard
+        self.blackboard["pos_cmd"] = {
+            "x": self.x,
+            "y": self.y,
+            "yaw": self.yaw
+        }
 
         #share device state to FSM
         self.blackboard["motor_ok"] = self.motor_ok
@@ -254,6 +301,7 @@ class StateMachineNode(Node):
             ErrorState(),
             transitions={
                 "outcome1": "Troubleshotting",
+                "outcome2": "Stop",
             },
         )
 
@@ -262,6 +310,7 @@ class StateMachineNode(Node):
             TroubleshootingState(),
             transitions={
                 "outcome1": "Initialize",
+                "outcome2": "Stop",
             },
         )
 
@@ -271,19 +320,9 @@ class StateMachineNode(Node):
         # Timer to periodically publish data to ui_node
         self.timer = self.create_timer(1.0, self.update_fsm)
 
-    def init_motors_info(self):
-        self.motors_info = InterfaceMultipleMotors
-        self.motors_info.quantity = 3
-        self.motors_info.motor_info = [InterfaceSingleMotor() for _ in range(self.motors_info.quantity)]
-        self.motors_info.motor_info[0].id = 1
-        self.motors_info.motor_info[0].device_state = True
-        self.motors_info.motor_info[1].id = 2
-        self.motors_info.motor_info[1].device_state = True
-        self.motors_info.motor_info[2].id = 3
-        self.motors_info.motor_info[2].device_state = True
 
     def button_cmd_callback(self,msg:ButtonCmd):
-        print("inside bmc callback")
+        # print("inside bmc callback")
 
         self.blackboard["button_cmd"]={
             "init_button":msg.init_button,
@@ -293,6 +332,45 @@ class StateMachineNode(Node):
             "gripper_button":msg.gripper_button,
         }
 
+    def pose_increment_callback(self,msg:PoseIncrement):
+        if self.blackboard["motion_finished"]:
+            base_increments = {
+                0: 1.0,        # x
+                1: 1.0,        # y
+                2: 0.017       # yaw (1 degree in radians)
+            }
+            # Define a scaling factor for step size
+            step_scale = {
+                1: 1,
+                2: 5,
+                3: 10,
+                -1: -1,
+                -2: -5,
+                -3: -10
+            }
+            # Get the scale and increment for current msg
+            scale = step_scale.get(msg.step, 0)
+            base = base_increments.get(msg.axis, 0)
+            delta = scale * base
+
+            # Apply the change
+            if msg.axis == 0:
+                self.x += delta
+            elif msg.axis == 1:
+                self.y += delta
+            elif msg.axis == 2:
+                self.yaw += delta
+            else:
+                print("Invalid axis")
+
+            self.blackboard["pos_cmd"]["x"] = self.x
+            self.blackboard["pos_cmd"]["y"] = self.y
+            self.blackboard["pos_cmd"]["yaw"] = self.yaw
+
+
+        else:
+            print("device is running")
+    
     def motion_finished_callback(self,msg:Bool):
         self.blackboard["motion_finished"] = msg.data  #False = the motor is moving ,can't publish any cmd to motion_control_node
 
@@ -309,10 +387,21 @@ class StateMachineNode(Node):
         msg.troubleshotting = state_info["troubleshotting"]
         self.state_info_pub.publish(msg)
 
+    def init_motors_info(self):
+        self.motors_info = InterfaceMultipleMotors()
+        self.motors_info.quantity = 3
+        self.motors_info.motor_info = [InterfaceSingleMotor() for _ in range(self.motors_info.quantity)]
+        self.motors_info.motor_info[0].id = 1
+        self.motors_info.motor_info[0].servo_state = True
+        self.motors_info.motor_info[1].id = 2
+        self.motors_info.motor_info[1].servo_state = True
+        self.motors_info.motor_info[2].id = 3
+        self.motors_info.motor_info[2].servo_state = True
+
     def check_device_state(self):
         #check motor:
         for i in range(self.motors_info.quantity):
-            if self.motors_info.motor_info[i].device_state:
+            if self.motors_info.motor_info[i].servo_state:
                 all_ok = True
                 print(f"M{i+1} is ok")
             else:
@@ -323,16 +412,21 @@ class StateMachineNode(Node):
     def update_fsm(self):
         self.motor_ok = self.check_device_state()
         self.blackboard["motor_ok"] = self.motor_ok
-        print("motor_state:",self.motor_ok)
 
-        print("update_fsm")
-        try:
-            outcome = self.sm(blackboard=self.blackboard)
-            yasmin.YASMIN_LOG_INFO(f"FSM current state: {outcome}")
-        except Exception as e:
-            self.get_logger().error(f"FSM execution error: {str(e)}")
-        #publish FSM state to gui_node
-        self.pub_state_info(self.blackboard["state_info"])
+        if not self.blackboard["init_finished"] and not self.motor_ok: 
+            motor_power = Bool()
+            motor_power.data = True
+            self.servo_switch_pub.publish(motor_power)
+            print("motor_state:",self.motor_ok)
+        else:
+            print("update_fsm")
+            try:
+                outcome = self.sm(blackboard=self.blackboard)
+                yasmin.YASMIN_LOG_INFO(f"FSM current state: {outcome}")
+            except Exception as e:
+                self.get_logger().error(f"FSM execution error: {str(e)}")
+            #publish FSM state to gui_node
+            self.pub_state_info(self.blackboard["state_info"])
 
 def main():
     rclpy.init()
