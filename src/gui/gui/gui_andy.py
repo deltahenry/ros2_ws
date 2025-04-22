@@ -47,6 +47,7 @@ class RealsenseSubscriber(Node):
         )
 
     def image_callback(self, msg):
+        print("get image")
         try:
             # print("In call back")
             # ROS Image → OpenCV Image
@@ -76,7 +77,7 @@ class MyGUI(QWidget):
         self.setGeometry(100, 100, 1200, 700)
 
         self.init_ui()
-        self.load_static_image("cabinet.jpg")  # 載入圖片而非 OpenCV 攝影機
+        # self.load_static_image("cabinet.jpg")  # 載入圖片而非 OpenCV 攝影機
         self.step = 3
     def init_ui(self):
         # === 圖片顯示區 ===
@@ -197,11 +198,18 @@ class MyGUI(QWidget):
         self.timer.timeout.connect(self.update_frame)
         self.timer.start(30)
         
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update_ros_sub)
+        self.timer.start(10)
+
         self.node_pub = RosNode_pub()
         self.realsense_node = RealsenseSubscriber()
+
     def update_ros_sub(self):
         rclpy.spin_once(self.realsense_node, timeout_sec=0.01)
+
     def update_frame(self):
+        self.update_ros_sub()
         if self.realsense_node.latest_frame is not None:
             frame = self.realsense_node.latest_frame
             h, w, ch = frame.shape

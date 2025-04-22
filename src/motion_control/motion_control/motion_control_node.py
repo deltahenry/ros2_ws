@@ -112,7 +112,7 @@ class MotionControlNode(Node):
             J2_y = y + sin(yaw)*P_J2MC[0,0] - cos(yaw)*P_J2MC[1,0]
             M2 = J2_x - sqrt(205.5**2-(abs(J2_y)-abs(P_J2MC[1,0]))**2)
 
-            M3 = y
+            M3 = y #need to change
 
             # print("M1,M2",M1,M2)
             motor_trajectory_batch.append([M1,M2,M3])
