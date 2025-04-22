@@ -1,0 +1,2 @@
+bool motion_finished
+bool init_finished
