@@ -18,8 +18,8 @@ class MotionControlNode(Node):
         self.v_des = self.get_parameter('v_des').get_parameter_value().double_value
         self.batch_size = self.get_parameter('batch_size').get_parameter_value().integer_value
 
-        self.motor_home_position = [345.0, 345.0, 0.0] #m1 len ...
-        self.center_position = [345.0, 0.0, 0.0]#x y yaw
+        self.motor_home_position = [164.5, 253.5, 0.0] #m1 len ...
+        self.home_position = [209.0, 0.0, 0.0]#x y yaw
         self.current_pose = [0.0, 0.0, 0.0]#x y yaw
         self.current_motor_pos = [0.0, 0.0, 0.0]#m1 len ...
 
@@ -206,7 +206,7 @@ class MotionControlNode(Node):
                 self.init_finished_pub.publish(Bool(data=True))
                 self.check_home_motion = False          
                 self.is_idle =True
-                self.current_pose = self.center_position          #update the current pose = home position
+                self.current_pose = self.home_position          #update the current pose = home position
                 print("self.current_pose",self.current_pose)
             else: 
                 print("in_check_home_motion")

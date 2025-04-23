@@ -274,38 +274,55 @@ class MyGUI(QWidget):
         rclpy.spin_once(self.realsense_node, timeout_sec=0.01)
 
     def update_button_color(self):
-        if self.node_sub.state_info.initialize:
-            if self.node_sub.motion_finished:  # motion_finished
-                self.btn_initialize.setStyleSheet("background-color: #4CAF50; color: white;")
-            else:
-                self.btn_initialize.setStyleSheet("background-color: #FFA500; color: white;")
+       
+        #init
+        if self.init_button:
+            self.btn_initialize.setStyleSheet("background-color: #3399FF; color: white;")        #blue
+            # self.btn_initialize.setStyleSheet("background-color: #FFA500; color: white;") #orange
+            if self.node_sub.state_info.initialize:
+                if self.node_sub.motion_finished:  # motion_finished
+                    self.btn_initialize.setStyleSheet("background-color: #4CAF50; color: white;") #green
+                else:
+                    self.btn_initialize.setStyleSheet("background-color: #FFA500; color: white;") #orange
         else:
-            self.btn_initialize.setStyleSheet("background-color: #9E9E9E; color: black;")
-
-        if self.node_sub.state_info.batterypicker:
-            if self.node_sub.motion_finished:  # motion_finished
-                self.btn_battery_cabinet_aux.setStyleSheet("background-color: #4CAF50; color: white;")
-            else:
-                self.btn_battery_cabinet_aux.setStyleSheet("background-color: #FFA500; color: white;")
+            self.btn_initialize.setStyleSheet("background-color: #9E9E9E; color: black;") 
+       
+        #battery_picker
+        if self.battery_line_button:
+            self.btn_battery_cabinet_aux.setStyleSheet("background-color: #3399FF; color: white;")#blue
+            # self.btn_battery_cabinet_aux.setStyleSheet("background-color: #FFA500; color: white;")
+            if self.node_sub.state_info.batterypicker:
+                if self.node_sub.motion_finished:  # motion_finished
+                    self.btn_battery_cabinet_aux.setStyleSheet("background-color: #4CAF50; color: white;")
+                else:
+                    self.btn_battery_cabinet_aux.setStyleSheet("background-color: #FFA500; color: white;")
         else:
             self.btn_battery_cabinet_aux.setStyleSheet("background-color: #9E9E9E; color: black;")
-        
-        if self.node_sub.state_info.batteryassembler:
-            if self.node_sub.motion_finished:  # motion_finished
-                self.btn_cabinet_aux.setStyleSheet("background-color: #4CAF50; color: white;")
-            else:
-                self.btn_cabinet_aux.setStyleSheet("background-color: #FFA500; color: white;")
+       
+        #battery_assembler
+        if self.cabinet_line_button:
+            self.btn_cabinet_aux.setStyleSheet("background-color: #3399FF; color: white;")#blue
+            # self.btn_cabinet_aux.setStyleSheet("background-color: #FFA500; color: white;")
+            if self.node_sub.state_info.batteryassembler:
+                if self.node_sub.motion_finished:  # motion_finished
+                    self.btn_cabinet_aux.setStyleSheet("background-color: #4CAF50; color: white;")
+                else:
+                    self.btn_cabinet_aux.setStyleSheet("background-color: #FFA500; color: white;")
         else:
             self.btn_cabinet_aux.setStyleSheet("background-color: #9E9E9E; color: black;")
-
-        if self.node_sub.state_info.troubleshotting:
-            if self.node_sub.motion_finished:  # motion_finished
-                self.btn_manual_fault_reset.setStyleSheet("background-color: #4CAF50; color: white;")
-            else:
-                self.btn_manual_fault_reset.setStyleSheet("background-color: #FFA500; color: white;")
+        
+        #trouble_shotting
+        if self.manual_button:
+            self.btn_manual_fault_reset.setStyleSheet("background-color: #3399FF; color: white;")#blue
+            # self.btn_manual_fault_reset.setStyleSheet("background-color: #FFA500; color: white;")
+            if self.node_sub.state_info.troubleshotting:
+                if self.node_sub.motion_finished:  # motion_finished
+                    self.btn_manual_fault_reset.setStyleSheet("background-color: #4CAF50; color: white;")
+                else:
+                    self.btn_manual_fault_reset.setStyleSheet("background-color: #FFA500; color: white;")
         else:
             self.btn_manual_fault_reset.setStyleSheet("background-color: #9E9E9E; color: black;")
-
+       
         #gripper
         if self.gripper_button:
             self.btn_gripper_close.setStyleSheet("background-color: #4CAF50; color: white;")
@@ -334,7 +351,7 @@ class MyGUI(QWidget):
         
         self.update_ros_sub()
 
-        if self.update_count >=5:
+        if self.update_count >=100:
             self.rewrite_button_cmd_state()
             self.update_count = 0
         

@@ -1,5 +1,5 @@
 from custom_msgs.msg import StateInfo, ButtonCmd,PoseIncrement,InterfaceSingleMotor,InterfaceMultipleMotors
-from std_msgs.msg import String
+from std_msgs.msg import String,Bool,Float64MultiArray
 from rclpy.node import Node
 import rclpy
 
@@ -8,15 +8,14 @@ class UINode(Node):
         super().__init__('ui_node')
 
         # Publishers
-        self.button_cmd_publisher = self.create_publisher(ButtonCmd, '/button_cmd', 10)
         self.motors_info_publisher = self.create_publisher(InterfaceMultipleMotors,'/multi_motor_info',10)  #fake
 
         #Subscribers
         self.state_info_subscriber = self.create_subscription(StateInfo, '/state_info', self.state_info_callback ,10)
+        self.set_home_subscriber = self.create_subscription(Bool, '/set_home_cmd',self.set_home_callback, 10) #to_motion_control
+        self.motor_pub = self.create_subscription(Float64MultiArray, '/motor_position_ref',self.motor_cmd_callback, 10) #motor_node
 
-        self.button_cmd = self.init_button()
-        self.button_cmd_publisher.publish(self.button_cmd)
-        self.get_logger().info("Initial button_cmd published.")
+        self.set_home = False
 
         # Initialize state
         self.state_info = self.init_state()
@@ -26,18 +25,7 @@ class UINode(Node):
 
         # Timer
         self.timer = self.create_timer(0.05, self.timer_callback)  #20Hz
-        self.count = 0
-
-    def init_button(self):
-        """Initializes the default button cmd."""
-        button_cmd_msg = ButtonCmd()
-        button_cmd_msg.init_button = False
-        button_cmd_msg.battery_line_button = False
-        button_cmd_msg.cabinet_line_button = False
-        button_cmd_msg.manual_button = False
-        button_cmd_msg.gripper_button = False
-
-        return button_cmd_msg
+        self.pub_count = 0
 
     def init_state(self):
         """Initializes the default state."""
@@ -63,6 +51,15 @@ class UINode(Node):
         self.motors_info.motor_info[2].fb_position = 0.0
         return self.motors_info
     
+    def motor_cmd_callback(self,msg:Float64MultiArray):
+        # print(msg.data[27])
+        self.motors_info.motor_info[0].fb_position = msg.data[27]
+        self.motors_info.motor_info[1].fb_position = msg.data[28]
+        self.motors_info.motor_info[2].fb_position = msg.data[29]
+
+    def set_home_callback(self,msg:Bool):
+        self.set_home = msg.data
+
     def state_info_callback(self,msg:StateInfo):
         self.state_info.initialize = msg.initialize  
         self.state_info.idle = msg.idle  
@@ -71,37 +68,16 @@ class UINode(Node):
         self.state_info.error = msg.error  
         self.state_info.troubleshotting = msg.troubleshotting  
 
-        print(self.state_info)
+        # print(self.state_info)
 
     def timer_callback(self):
         """This runs at 20Hz."""
-        # self.get_logger().info("UI Node is refreshing...")
 
-        # Publish test ButtonCmd message
-        self.button_cmd.init_button = True
+        if self.pub_count >=100:
+            self.motors_info_publisher.publish(self.motors_info) #fake
+            self.pub_count = 0
 
-        #maunally change butoon state when the state is idle
-        if self.state_info.idle:
-            self.button_cmd.battery_line_button = True
-
-        if self.count >= 100:
-            self.motors_info.motor_info[0].fb_position = 345.0
-            self.motors_info.motor_info[1].fb_position = 345.0
-            self.motors_info.motor_info[2].fb_position = 0.0
-            if self.count >= 300:
-                self.motors_info.motor_info[0].fb_position = 164.5
-                self.motors_info.motor_info[1].fb_position = 253.5
-                # self.motors_info.motor_info[1].fb_position = 0.0
-                self.motors_info.motor_info[2].fb_position = 0.0
-                self.button_cmd.cabinet_line_button = True
-
-        # #maunally change butoon state check when the state is battery picker and motion finished
-        # if self.state_info.batterypicker:
-        #     self.button_cmd.cabinet_line_button = True
-        
-        self.button_cmd_publisher.publish(self.button_cmd)
-        self.motors_info_publisher.publish(self.motors_info) #fake
-        self.count+=1
+        self.pub_count+=1
 
 def main(args=None):
     rclpy.init(args=args)

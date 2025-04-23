@@ -11,9 +11,9 @@ from std_msgs.msg import String,Float64MultiArray,Bool
 from custom_msgs.msg import StateInfo,ButtonCmd,PoseIncrement,InterfaceMultipleMotors,InterfaceSingleMotor
 
 
-def set_home(set_home_publisher):
+def set_home(set_home_publisher,set_home_data):
     msg = Bool()
-    msg.data = True
+    msg.data = set_home_data
     set_home_publisher.publish(msg)
 
 def position_cmd(publisher,x_cmd,y_cmd,yaw_cmd):
@@ -43,12 +43,15 @@ class InitializeState(State):
         if motor_ok:
             if init_finished:
                 blackboard["state_info"]["idle"] = True
+                blackboard["set_home"] = False
+                set_home(set_home_publisher,blackboard["set_home"]) #dot't move to home
                 return "outcome1" #Go To Idle state
             else:
                 if motion_finished:  #Ready to move
                     if init_buttons:
                         blackboard["state_info"]["initialize"] = True
-                        set_home(set_home_publisher) #move to home
+                        blackboard["set_home"] = True
+                        set_home(set_home_publisher,blackboard["set_home"]) #move to home
                         return "outcome3"
                     else:
                         return "outcome3"
@@ -218,6 +221,8 @@ class StateMachineNode(Node):
             "y": self.y,
             "yaw": self.yaw
         }
+
+        self.blackboard["set_home"] = False
 
         #share device state to FSM
         self.blackboard["motor_ok"] = self.motor_ok
