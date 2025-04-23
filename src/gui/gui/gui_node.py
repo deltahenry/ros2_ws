@@ -43,7 +43,7 @@ class RosNode_pub(Node):
         button_cmd_msg.manual_button = button_cmd["manual_cmd"]
         button_cmd_msg.gripper_button= button_cmd["gripper_cmd"]
 
-        print(button_cmd["init_cmd"])
+        # print(button_cmd["init_cmd"])
         self.button_cmd_publisher.publish(button_cmd_msg)
 class RosNode_sub(Node):
     def __init__(self):
@@ -82,27 +82,34 @@ class RealsenseSubscriber(Node):
             self.image_callback,
             10
         )
+        self.node_sub = RosNode_sub()
 
     def image_callback(self, msg):
         # print("get image")
         try:
-            # print("In call back")
             # ROS Image → OpenCV Image
-            cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+            self.cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
             
-            # 加上紅色圓點（BGR = (0, 0, 255)）
-            h, w, _ = cv_image.shape
-            points = [
-            (50, 50),
-            (w - 50, 50),
-            (50, h - 50),
-            (w - 50, h - 50)
-            ]
-            for pt in points:
-                cv2.circle(cv_image, pt, radius=10, color=(0, 0, 255), thickness=3)
-            # OpenCV BGR → RGB
-            cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
-            self.latest_frame = cv_image
+            # # 加上紅色圓點（BGR = (0, 0, 255)）
+            # h, w, _ = cv_image.shape
+            # points = [
+            # (50, 50),
+            # (w - 50, 50),
+            # (50, h - 50),
+            # (w - 50, h - 50)
+            # ]
+            # print("pick_in_image",self.node_sub.state_info.batterypicker)
+            # if  self.node_sub.state_info.batterypicker:
+            #     for pt in points:
+            #         cv2.circle(cv_image, pt, radius=10, color=(0, 0, 255), thickness=3)
+            # elif self.node_sub.state_info.batteryassembler:
+            #     for pt in points:
+            #         cv2.circle(cv_image, pt, radius=10, color=(0, 255, 0), thickness=3)
+            
+            # # OpenCV BGR → RGB
+            # cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
+            
+            # self.latest_frame = cv_image
             # print("Received img")
         except Exception as e:
             self.get_logger().error(f"Error converting image: {e}")   
@@ -346,7 +353,7 @@ class MyGUI(QWidget):
             "manual_cmd":self.manual_button,
             "gripper_cmd":self.gripper_button
         }
-        print("init_cmd_before",self.init_button)
+        # print("init_cmd_before",self.init_button)
         self.node_pub.publish_button_cmd(button_cmd)
         
         self.update_ros_sub()
@@ -356,17 +363,34 @@ class MyGUI(QWidget):
             self.update_count = 0
         
 
-        print("init_cmd_after",self.init_button)
+        # print("init_cmd_after",self.init_button)
         self.update_button_color()
         
         self.update_count +=1
         
+        if self.realsense_node.cv_image is not None:
+           # 加上紅色圓點（BGR = (0, 0, 255)）
+            cv_image = self.realsense_node.cv_image
+            h, w, _ = cv_image.shape
+            points = [
+            (50, 50),
+            (w - 50, 50),
+            (50, h - 50),
+            (w - 50, h - 50)
+            ]
+            print("pick_in_image",self.node_sub.state_info.batterypicker)
+            if  self.node_sub.state_info.batterypicker:
+                for pt in points:
+                    cv2.circle(cv_image, pt, radius=10, color=(0, 0, 255), thickness=3)
+            elif self.node_sub.state_info.batteryassembler:
+                for pt in points:
+                    cv2.circle(cv_image, pt, radius=10, color=(0, 255, 0), thickness=3)
+            
+            # OpenCV BGR → RGB
+            RGB_cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
+            self.latest_frame = RGB_cv_image
 
-
-
-
-        if self.realsense_node.latest_frame is not None:
-            frame = self.realsense_node.latest_frame
+            frame = self.realsense_node.cv_image
             h, w, ch = frame.shape
             bytes_per_line = ch * w
             qimg = QImage(frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
