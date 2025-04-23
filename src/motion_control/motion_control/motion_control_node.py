@@ -105,11 +105,11 @@ class MotionControlNode(Node):
         for x, y, yaw in trajectory:
 
             J1_x = x + cos(yaw)*P_J1MC[0,0] - sin(yaw)*P_J1MC[1,0]
-            J1_y = y + sin(yaw)*P_J1MC[0,0] - cos(yaw)*P_J1MC[1,0]
+            J1_y = 0 + sin(yaw)*P_J1MC[0,0] - cos(yaw)*P_J1MC[1,0]
             M1 = J1_x + sqrt(205.5**2-(abs(J1_y)-abs(P_J1MC[1,0]))**2)
 
             J2_x = x + cos(yaw)*P_J2MC[0,0] - sin(yaw)*P_J2MC[1,0]
-            J2_y = y + sin(yaw)*P_J2MC[0,0] - cos(yaw)*P_J2MC[1,0]
+            J2_y = 0 + sin(yaw)*P_J2MC[0,0] - cos(yaw)*P_J2MC[1,0]
             M2 = J2_x - sqrt(205.5**2-(abs(J2_y)-abs(P_J2MC[1,0]))**2)
 
             M3 = y #need to change
@@ -187,6 +187,7 @@ class MotionControlNode(Node):
         if self.has_new_home or self.has_new_position:
             self.is_idle = False
             self.publish_motor_positions()
+            print("in_timer_callback")
             self.motion_finished_pub.publish(Bool(data=False))     # publish trajectory is unfinished the FSM wouldn't publish
 
         # Only check for completion AFTER publishing
@@ -208,6 +209,7 @@ class MotionControlNode(Node):
                 self.current_pose = self.center_position          #update the current pose = home position
                 print("self.current_pose",self.current_pose)
             else: 
+                print("in_check_home_motion")
                 self.motion_finished_pub.publish(Bool(data=False))
 
         if self.check_position_motion:
@@ -219,6 +221,7 @@ class MotionControlNode(Node):
                 self.current_pose = self.pos_cmd         #update the current pose = position_cmd
                 print("self.current_pose",self.current_pose)
             else: 
+                print("in_check_position_motion")
                 self.motion_finished_pub.publish(Bool(data=False))
 
         if self.is_idle and not self.has_new_home and not self.has_new_position:

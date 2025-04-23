@@ -42,12 +42,12 @@ class InitializeState(State):
 
         if motor_ok:
             if init_finished:
-                blackboard["state_info"]["initialize"] = True
                 blackboard["state_info"]["idle"] = True
                 return "outcome1" #Go To Idle state
             else:
                 if motion_finished:  #Ready to move
                     if init_buttons:
+                        blackboard["state_info"]["initialize"] = True
                         set_home(set_home_publisher) #move to home
                         return "outcome3"
                     else:

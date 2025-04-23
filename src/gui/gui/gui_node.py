@@ -1,112 +1,483 @@
-from custom_msgs.msg import StateInfo, ButtonCmd,PoseIncrement,InterfaceSingleMotor,InterfaceMultipleMotors
-from std_msgs.msg import String
-from rclpy.node import Node
+import sys
+import cv2
+from PySide6.QtWidgets import (
+    QApplication, QWidget, QLabel, QPushButton, QTextEdit, QGridLayout,
+    QVBoxLayout, QHBoxLayout, QComboBox, QSizePolicy
+)
+from PySide6.QtGui import QPixmap, QImage
+from PySide6.QtCore import Qt, QTimer, QSize, Signal, QObject
+
 import rclpy
+from rclpy.node import Node
+from custom_msgs.msg import ButtonCmd, PoseIncrement, StateInfo
 
-class UINode(Node):
+from sensor_msgs.msg import Image
+from std_msgs.msg import Bool
+from cv_bridge import CvBridge
+import copy
+
+class RosNode_pub(Node):
     def __init__(self):
-        super().__init__('ui_node')
+        super().__init__('my_ros_node_pub')  # 這樣可以確保多重繼承時的初始化順序正確
+        self.get_logger().info('ROS 2 node initialized')
 
-        # Publishers
+        # 建立一個發佈器，用於發佈名為 'test_int' 的 topic
+        self.pose_pub = self.create_publisher(PoseIncrement, 'pose_increment', 10)
         self.button_cmd_publisher = self.create_publisher(ButtonCmd, '/button_cmd', 10)
-        self.motors_info_publisher = self.create_publisher(InterfaceMultipleMotors,'/multi_motor_info',10)  #fake
+        # 初始化計數器
+        self.counter = 0
 
-        #Subscribers
-        self.state_info_subscriber = self.create_subscription(StateInfo, '/state_info', self.state_info_callback ,10)
+    def publish_cmd(self, axis, step):
+        # 發送 PoseIncrement
+        pose_msg = PoseIncrement()
+        pose_msg.axis = axis  # 0:x, 1:y, 2:yaw
+        pose_msg.step = step  # -3, -2, -1, 1, 2, 3
+        self.pose_pub.publish(pose_msg)
+        self.get_logger().info(f'Published PoseIncrement: {pose_msg}')
 
-        self.button_cmd = self.init_button()
-        self.button_cmd_publisher.publish(self.button_cmd)
-        self.get_logger().info("Initial button_cmd published.")
-
-        # Initialize state
-        self.state_info = self.init_state()
-
-        #init motor state
-        self.motors_info = self.init_motors_info()
-
-        # Timer
-        self.timer = self.create_timer(0.05, self.timer_callback)  #20Hz
-        self.count = 0
-
-    def init_button(self):
-        """Initializes the default button cmd."""
+    def publish_button_cmd(self,button_cmd):
         button_cmd_msg = ButtonCmd()
-        button_cmd_msg.init_button = False
-        button_cmd_msg.battery_line_button = False
-        button_cmd_msg.cabinet_line_button = False
-        button_cmd_msg.manual_button = False
-        button_cmd_msg.gripper_button = False
+        button_cmd_msg.init_button = button_cmd["init_cmd"]
+        button_cmd_msg.battery_line_button = button_cmd["batter_line_cmd"]
+        button_cmd_msg.cabinet_line_button = button_cmd["cabinet_line_cmd"]
+        button_cmd_msg.manual_button = button_cmd["manual_cmd"]
+        button_cmd_msg.gripper_button= button_cmd["gripper_cmd"]
 
-        return button_cmd_msg
+        print(button_cmd["init_cmd"])
+        self.button_cmd_publisher.publish(button_cmd_msg)
+class RosNode_sub(Node):
+    def __init__(self):
+        super().__init__('my_ros_node_sub')  # 這樣可以確保多重繼承時的初始化順序正確
+        self.get_logger().info('ROS 2 node initialized')
+        self.state_info_sub = self.create_subscription(StateInfo,'/state_info',self.state_info_callback,10)
+        self.motion_finished_sub = self.create_subscription(Bool,'/motion_finished',self.motion_finished_callback,10)
+        self.motion_finished = False
+        self.init_state_info()
 
-    def init_state(self):
-        """Initializes the default state."""
-        state_info_msg = StateInfo()
-        state_info_msg.initialize = False
-        state_info_msg.idle = False
-        state_info_msg.batterypicker = False
-        state_info_msg.batteryassembler = False
-        state_info_msg.error = False
-        state_info_msg.troubleshotting = False
+    def init_state_info(self):
+        self.state_info = StateInfo()
+        self.state_info.initialize = False
+        self.state_info.idle = False
+        self.state_info.batterypicker = False
+        self.state_info.batteryassembler = False
+        self.state_info.error = False
+        self.state_info.troubleshotting = False
+
+    def state_info_callback(self, msg:StateInfo):
+        self.state_info = msg
+        # print("state",self.state_info.initialize)
+
+    def motion_finished_callback(self,msg:Bool):
+        self.motion_finished = msg.data  #False = the motor is moving
+        print("motion_finished",self.motion_finished)
+class RealsenseSubscriber(Node):
+    def __init__(self):
+        super().__init__('realsense_subscriber')
+        self.get_logger().info('ROS 2 node initialized')
+        self.bridge = CvBridge()
+        self.latest_frame = None  # 儲存最新影像
+        self.subscription = self.create_subscription(
+            Image,
+            '/camera/camera/color/image_raw',  # 根據實際情況調整
+            self.image_callback,
+            10
+        )
+
+    def image_callback(self, msg):
+        # print("get image")
+        try:
+            # print("In call back")
+            # ROS Image → OpenCV Image
+            cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+            
+            # 加上紅色圓點（BGR = (0, 0, 255)）
+            h, w, _ = cv_image.shape
+            points = [
+            (50, 50),
+            (w - 50, 50),
+            (50, h - 50),
+            (w - 50, h - 50)
+            ]
+            for pt in points:
+                cv2.circle(cv_image, pt, radius=10, color=(0, 0, 255), thickness=3)
+            # OpenCV BGR → RGB
+            cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
+            self.latest_frame = cv_image
+            # print("Received img")
+        except Exception as e:
+            self.get_logger().error(f"Error converting image: {e}")   
         
-        return state_info_msg
-    
-    def init_motors_info(self):
-        self.motors_info = InterfaceMultipleMotors()
-        self.motors_info.quantity = 3
-        self.motors_info.motor_info = [InterfaceSingleMotor() for _ in range(self.motors_info.quantity)]
-        self.motors_info.motor_info[0].id = 1
-        self.motors_info.motor_info[0].fb_position = 330.0
-        self.motors_info.motor_info[1].id = 2
-        self.motors_info.motor_info[1].fb_position = 400.0
-        self.motors_info.motor_info[2].id = 3
-        self.motors_info.motor_info[2].fb_position = 0.0
-        return self.motors_info
-    
-    def state_info_callback(self,msg:StateInfo):
-        self.state_info.initialize = msg.initialize  
-        self.state_info.idle = msg.idle  
-        self.state_info.batterypicker = msg.batterypicker  
-        self.state_info.batteryassembler = msg.batteryassembler
-        self.state_info.error = msg.error  
-        self.state_info.troubleshotting = msg.troubleshotting  
+class MyGUI(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Layout Example")
+        self.setGeometry(100, 100, 1200, 700)
+        self.init_button_cmd()
+        self.init_ui()
+        self.step = 3
+        self.update_count = 0
 
-        print(self.state_info)
+    def init_button_cmd(self):
 
-    def timer_callback(self):
-        """This runs at 20Hz."""
-        # self.get_logger().info("UI Node is refreshing...")
+        self.init_button =False
+        self.battery_line_button=False
+        self.cabinet_line_button =False
+        self.manual_button =False
+        self.gripper_button =False
 
-        # Publish test ButtonCmd message
-        self.button_cmd.init_button = True
+    def init_ui(self):
+        # === 圖片顯示區 ===
+        self.image_label = QLabel()
+        self.image_label.setMinimumSize(320, 240)
+        self.image_label.setAlignment(Qt.AlignCenter)
+        self.image_label.setStyleSheet("background-color: #2b2b2b; border: 1px solid gray;")
 
-        #maunally change butoon state when the state is idle
-        if self.state_info.idle:
-            self.button_cmd.battery_line_button = True
+        # === 右上：狀態顯示區 ===
+        self.top_right_text = QLabel("Status: Ready")  # 使用 QLabel 顯示靜態文字
+        self.top_right_text.setAlignment(Qt.AlignCenter)
+        self.top_right_text.setStyleSheet("background-color: #333; color: white; border: 1px solid gray;")
 
-        if self.count >= 100:
-            self.motors_info.motor_info[0].fb_position = 345.0
-            self.motors_info.motor_info[1].fb_position = 345.0
-            self.motors_info.motor_info[2].fb_position = 0.0
-            if self.count >= 300:
-                self.motors_info.motor_info[0].fb_position = 164.5
-                self.motors_info.motor_info[1].fb_position = 253.5
-                self.motors_info.motor_info[2].fb_position = 0.0
-                self.button_cmd.cabinet_line_button = True
+        self.right_buttons = []
+        button_grid = QGridLayout()
 
-        # #maunally change butoon state check when the state is battery picker and motion finished
-        # if self.state_info.batterypicker:
-        #     self.button_cmd.cabinet_line_button = True
+        # 按鈕名稱可以在這裡自定義
+        button_names = ["X+", "X-", "Y+", "Y-", "Yaw+", "Yaw-"]
+        for i, button_name in enumerate(button_names):
+            btn = QPushButton(button_name)
+            btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            btn.clicked.connect(getattr(self, f"on_{button_name.replace('+', 'plus').replace('-', 'minus').lower()}"))
+            self.right_buttons.append(btn)
+            button_grid.addWidget(btn, i // 2, i % 2)
+
+        self.quality_combo = QComboBox()
+        self.quality_combo.addItems(["High", "Medium", "Low"])
+        self.quality_combo.currentIndexChanged.connect(self.update_quality)
+
+        button_and_combo_layout = QHBoxLayout()
+        button_and_combo_layout.addLayout(button_grid, 3)
+        button_and_combo_layout.addWidget(self.quality_combo, 1)
+
+        right_top_layout = QVBoxLayout()
+        right_top_layout.addWidget(self.top_right_text)
+        right_top_layout.addLayout(button_and_combo_layout)
+
+        # === 上半部 layout：左影像 + 右操作 ===
+        top_layout = QHBoxLayout()
+        top_layout.addWidget(self.image_label, 3)
+        top_layout.addLayout(right_top_layout, 2)
+
+        # === 下半部左：切換 1x6 或普通模式 ===
+        self.layout_switcher = QComboBox()
+        self.layout_switcher.addItems(["馬達位置、電流值", "IO設備狀態"])
+        self.layout_switcher.currentIndexChanged.connect(self.switch_layout)
+
+        self.stack_text = QWidget()
+        self.stack_layout = QVBoxLayout()
+        self.stack_text.setLayout(self.stack_layout)
+
+        self.text_mode_1x6 = QWidget()
+        grid = QGridLayout()
+        for i in range(6):
+            label = QLabel(f"Motor {i + 1}")
+            label.setAlignment(Qt.AlignCenter)
+            grid.addWidget(label, 0, i)
+        self.text_mode_1x6.setLayout(grid)
+
+        # 這裡修改為 QLabel 來顯示靜態文字，而不是 QTextEdit
+        self.text_mode_plain = QLabel("""
+            夾具: <b>On/Off</b><br>
+            測距儀1: <b>數據</b><br>
+            測距儀2: <b>數據</b>
+        """)
+        self.text_mode_plain.setAlignment(Qt.AlignCenter)
+        # self.text_mode_plain.setStyleSheet("background-color: #2b2b2b; color: white; border: 1px solid gray;")
+
+        self.stack_layout.addWidget(self.text_mode_1x6)
+        self.stack_layout.addWidget(self.text_mode_plain)
+        self.switch_layout(0)
+
+        left_bottom_layout = QVBoxLayout()
+        left_bottom_layout.addWidget(self.layout_switcher)
+        left_bottom_layout.addWidget(self.stack_text)
+
+        # === 下半部右：3x2 Button Layout ===9
+        self.right_bottom_buttons = []
+        button_grid_right = QGridLayout()
+
+        # 按鈕名稱可以在這裡自定義
+        right_button_names = ["初始化", "電池櫃輔助線",\
+                              "夾具打開", "手動故障移除",\
+                              "機櫃輔助線", "夾具關閉"]
+        for i, button_name in enumerate(right_button_names):
+            # 將中文按鈕名稱轉換為對應的函數名
+            func_name = f"on_btn_{button_name.replace(' ', '').replace('初始化', 'initialize').replace('手動故障移除', 'manual_fault_reset').replace('電池櫃輔助線', 'battery_cabinet_aux').replace('機櫃輔助線', 'cabinet_aux').replace('夾具打開', 'gripper_open').replace('夾具關閉', 'gripper_close')}"
+            btn = QPushButton(f"{button_name}")
+            btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            btn.clicked.connect(getattr(self, func_name))
+
+            # Save reference to the init button
+            if button_name == "初始化":
+                self.btn_initialize = btn  # <-- keep a reference
+            elif button_name == "手動故障移除":
+                self.btn_manual_fault_reset = btn  # <-- keep a reference
+            elif button_name == "電池櫃輔助線":
+                self.btn_battery_cabinet_aux = btn  # <-- keep a reference
+            elif button_name == "機櫃輔助線":
+                self.btn_cabinet_aux = btn  # <-- keep a reference
+            elif button_name == "夾具打開":
+                self.btn_gripper_open = btn  # <-- keep a reference
+            elif button_name == "夾具關閉":
+                self.btn_gripper_close = btn  # <-- keep a reference
+
+            self.right_bottom_buttons.append(btn)
+            button_grid_right.addWidget(btn, i // 3, i % 3)
+
+        right_bottom_widget = QWidget()
+        right_bottom_widget.setLayout(button_grid_right)
+
+        # === 下半部 layout ===
+        bottom_layout = QHBoxLayout()
+        bottom_layout.addLayout(left_bottom_layout, 3)
+        bottom_layout.addWidget(right_bottom_widget, 2)
+
+        # === 上下打包進主畫面 ===
+        top_widget = QWidget()
+        top_widget.setLayout(top_layout)
+        top_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        bottom_widget = QWidget()
+        bottom_widget.setLayout(bottom_layout)
+        bottom_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        final_layout = QVBoxLayout()
+        final_layout.addWidget(top_widget, 7)
+        final_layout.addWidget(bottom_widget, 3)
+
+        self.setLayout(final_layout)
+
+        self.frame_timer = QTimer(self)
+        self.frame_timer.timeout.connect(self.update_frame)
+        self.frame_timer.start(30)
         
-        self.button_cmd_publisher.publish(self.button_cmd)
-        self.motors_info_publisher.publish(self.motors_info) #fake
-        self.count+=1
+        self.realsense_timer = QTimer(self)
+        self.realsense_timer.timeout.connect(self.update_realsense_sub)
+        self.realsense_timer.start(10)
+        
+        self.node_pub = RosNode_pub()
+        self.node_sub = RosNode_sub()
+        self.realsense_node = RealsenseSubscriber()
 
-def main(args=None):
-    rclpy.init(args=args)
-    ui_node = UINode()
-    rclpy.spin(ui_node)
-    rclpy.shutdown()
+    def update_ros_sub(self):
+        rclpy.spin_once(self.node_sub, timeout_sec=0.01)
 
-if __name__ == '__main__':
+    def update_realsense_sub(self):
+        rclpy.spin_once(self.realsense_node, timeout_sec=0.01)
+
+    def update_button_color(self):
+        if self.node_sub.state_info.initialize:
+            if self.node_sub.motion_finished:  # motion_finished
+                self.btn_initialize.setStyleSheet("background-color: #4CAF50; color: white;")
+            else:
+                self.btn_initialize.setStyleSheet("background-color: #FFA500; color: white;")
+        else:
+            self.btn_initialize.setStyleSheet("background-color: #9E9E9E; color: black;")
+
+        if self.node_sub.state_info.batterypicker:
+            if self.node_sub.motion_finished:  # motion_finished
+                self.btn_battery_cabinet_aux.setStyleSheet("background-color: #4CAF50; color: white;")
+            else:
+                self.btn_battery_cabinet_aux.setStyleSheet("background-color: #FFA500; color: white;")
+        else:
+            self.btn_battery_cabinet_aux.setStyleSheet("background-color: #9E9E9E; color: black;")
+        
+        if self.node_sub.state_info.batteryassembler:
+            if self.node_sub.motion_finished:  # motion_finished
+                self.btn_cabinet_aux.setStyleSheet("background-color: #4CAF50; color: white;")
+            else:
+                self.btn_cabinet_aux.setStyleSheet("background-color: #FFA500; color: white;")
+        else:
+            self.btn_cabinet_aux.setStyleSheet("background-color: #9E9E9E; color: black;")
+
+        if self.node_sub.state_info.troubleshotting:
+            if self.node_sub.motion_finished:  # motion_finished
+                self.btn_manual_fault_reset.setStyleSheet("background-color: #4CAF50; color: white;")
+            else:
+                self.btn_manual_fault_reset.setStyleSheet("background-color: #FFA500; color: white;")
+        else:
+            self.btn_manual_fault_reset.setStyleSheet("background-color: #9E9E9E; color: black;")
+
+        #gripper
+        if self.gripper_button:
+            self.btn_gripper_close.setStyleSheet("background-color: #4CAF50; color: white;")
+            self.btn_gripper_open.setStyleSheet("background-color: #9E9E9E; color: black;")
+        else:
+            self.btn_gripper_close.setStyleSheet("background-color: #9E9E9E; color: black;")
+            self.btn_gripper_open.setStyleSheet("background-color: #4CAF50; color: white;")
+            
+    def rewrite_button_cmd_state(self):
+        self.init_button = copy.deepcopy(self.node_sub.state_info.initialize)
+        self.battery_line_button = copy.deepcopy(self.node_sub.state_info.batterypicker)
+        self.cabinet_line_button = copy.deepcopy(self.node_sub.state_info.batteryassembler)
+        self.manual_button = copy.deepcopy(self.node_sub.state_info.troubleshotting)
+
+
+    def update_frame(self):
+        button_cmd = {
+            "init_cmd":self.init_button,
+            "batter_line_cmd":self.battery_line_button,
+            "cabinet_line_cmd": self.cabinet_line_button,
+            "manual_cmd":self.manual_button,
+            "gripper_cmd":self.gripper_button
+        }
+        print("init_cmd_before",self.init_button)
+        self.node_pub.publish_button_cmd(button_cmd)
+        
+        self.update_ros_sub()
+
+        if self.update_count >=5:
+            self.rewrite_button_cmd_state()
+            self.update_count = 0
+        
+
+        print("init_cmd_after",self.init_button)
+        self.update_button_color()
+        
+        self.update_count +=1
+        
+
+
+
+
+        if self.realsense_node.latest_frame is not None:
+            frame = self.realsense_node.latest_frame
+            h, w, ch = frame.shape
+            bytes_per_line = ch * w
+            qimg = QImage(frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
+            self.pixmap = QPixmap.fromImage(qimg)
+        if hasattr(self, 'pixmap'):
+            self.image_label.setPixmap(self.pixmap.scaled(
+                self.image_label.width(),
+                self.image_label.height(),
+                Qt.IgnoreAspectRatio,
+                Qt.SmoothTransformation
+            ))
+    # 每個按鈕的回調函數
+
+    def on_xplus(self):
+        self.top_right_text.setText("X+ Button clicked!")
+        self.node_pub.publish_cmd(axis = 0, step = self.step)
+
+    def on_xminus(self):
+        self.top_right_text.setText("X- Button clicked!")
+        self.node_pub.publish_cmd(axis = 0, step = self.step * (-1))
+    def on_yplus(self):
+        self.top_right_text.setText("Y+ Button clicked!")
+        self.node_pub.publish_cmd(axis = 1, step = self.step)
+    def on_yminus(self):
+        self.top_right_text.setText("Y- Button clicked!")
+        self.node_pub.publish_cmd(axis = 1, step = self.step * (-1))
+    def on_yawplus(self):
+        self.top_right_text.setText("Yaw+ Button clicked!")
+        self.node_pub.publish_cmd(axis = 2, step = self.step)
+    def on_yawminus(self):
+        self.top_right_text.setText("Yaw- Button clicked!")
+        self.node_pub.publish_cmd(axis = 2, step = self.step * (-1))
+    
+    def on_btn_initialize(self):
+        self.top_right_text.setText("初始化 Button clicked!")
+
+        if self.init_button:
+            self.init_button = False
+        else:
+            self.init_button = True
+
+    def on_btn_manual_fault_reset(self):
+        self.top_right_text.setText("手動故障移除 Button clicked!")
+
+        if self.manual_button:
+            self.manual_button = False
+        else:
+            self.manual_button = True
+
+    def on_btn_battery_cabinet_aux(self):
+        self.top_right_text.setText("電池櫃輔助線 Button clicked!")
+
+        if self.battery_line_button:
+            self.battery_line_button = False
+        else:
+            self.battery_line_button = True
+
+    def on_btn_cabinet_aux(self):
+        self.top_right_text.setText("機櫃輔助線 Button clicked!")
+
+        if self.cabinet_line_button:
+            self.cabinet_line_button = False
+        else:
+            self.cabinet_line_button = True
+
+    def on_btn_gripper_open(self):
+        self.top_right_text.setText("夾具打開 Button clicked!")
+        self.gripper_button =False
+
+    def on_btn_gripper_close(self):
+        self.top_right_text.setText("夾具關閉 Button clicked!")
+        self.gripper_button =True
+        
+        
+    def on_quality_high(self):
+        self.top_right_text.setText("High quality selected!")
+        self.step = 3
+
+    def on_quality_medium(self):
+        self.top_right_text.setText("Medium quality selected!")
+        self.step = 2
+    def on_quality_low(self):
+        self.top_right_text.setText("Low quality selected!")
+        self.step = 1
+        
+    def update_quality(self, index):
+        if index == 0:
+            self.on_quality_high()
+        elif index == 1:
+            self.on_quality_medium()
+        elif index == 2:
+            self.on_quality_low()
+
+    def switch_layout(self, index):
+        self.text_mode_1x6.setVisible(index == 0)
+        self.text_mode_plain.setVisible(index == 1)
+
+    def load_static_image(self, path):
+        self.pixmap = QPixmap(path)
+        if self.pixmap.isNull():
+            print(f"Warning: Failed to load image: {path}")
+            return
+        self.update_image_display()
+    
+    def update_image_display(self):
+        if hasattr(self, "pixmap") and self.pixmap:
+            scaled = self.pixmap.scaled(
+                self.image_label.size(),
+                Qt.IgnoreAspectRatio,  # 不保持比例，完全填滿區域
+                Qt.SmoothTransformation
+            )
+            self.image_label.setPixmap(scaled)
+    
+    def resizeEvent(self, event):
+        self.update_image_display()
+        super().resizeEvent(event)
+
+    def closeEvent(self, event):
+        event.accept()
+
+def main():
+    rclpy.init()  # 初始化 ROS 2
+
+    app = QApplication(sys.argv)
+    window = MyGUI()
+    window.show()
+
+    sys.exit(app.exec())
+    rclpy.shutdown()  # 關閉 ROS 2
+if __name__ == "_main_":
     main()

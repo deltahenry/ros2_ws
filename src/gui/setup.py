@@ -25,8 +25,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-        	'gui = gui.gui_node:main',
-            'gui_andy = gui.gui_andy:main',
+        	'fake_motor = gui.fake_motor_node:main',
+            'gui = gui.gui_node:main',
         ],
     },
 )
