@@ -4,7 +4,7 @@ from std_msgs.msg import Float64MultiArray, Bool
 from geometry_msgs.msg import Pose2D
 import numpy as np
 import math
-from custom_msgs.msg import InterfaceMultipleMotors, InterfaceSingleMotor
+from custom_msgs.msg import InterfaceMultipleMotors, InterfaceSingleMotor,StateInfo
 
 
 
@@ -41,6 +41,7 @@ class MotionControlNode(Node):
         self.set_home_sub = self.create_subscription(Bool, '/set_home_cmd', self.set_home_callback, 10)
         self.pos_cmd_sub = self.create_subscription(Float64MultiArray, '/position_cmd', self.position_cmd_callback, 10)    
         self.motors_info_sub = self.create_subscription(InterfaceMultipleMotors,'/multi_motor_info',self.motors_info_callback,10)
+        self.state_info_sub = self.create_subscription(StateInfo,'/state_info',self.state_info_callback,10)
 
         #publisher
         self.motor_pub = self.create_publisher(Float64MultiArray, '/motor_position_ref', 10) #motor_node
@@ -50,9 +51,23 @@ class MotionControlNode(Node):
         #init motor_state_info
         self.motor_ok = False
         self.init_motors_info()
+        #init state_info
+        self.init_state_info()
 
         self.timer = self.create_timer(1.0 / 40.0, self.timer_callback)
     
+    def init_state_info(self):
+        self.state_info = StateInfo()
+        self.state_info.initialize = False
+        self.state_info.idle = False
+        self.state_info.batterypicker = False
+        self.state_info.batteryassembler = False
+        self.state_info.error = False
+        self.state_info.troubleshotting = False 
+
+    def state_info_callback(self, msg:StateInfo):
+        self.state_info = msg
+
     def init_motors_info(self):
         self.M1_fb_pos = 0.0
         self.M2_fb_pos = 0.0
@@ -227,6 +242,10 @@ class MotionControlNode(Node):
         if self.is_idle and not self.has_new_home and not self.has_new_position:
             # print("ready")
             self.motion_finished_pub.publish(Bool(data=True))
+
+        if self.state_info.troubleshotting: #error happen
+            self.motion_finished_pub.publish(Bool(data=True))
+            self.init_finished_pub.publish(Bool(data=False))
 
 def main(args=None):
     rclpy.init(args=args)

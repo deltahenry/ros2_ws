@@ -46,10 +46,15 @@ class InitializeState(State):
                 blackboard["set_home"] = False
                 set_home(set_home_publisher,blackboard["set_home"]) #dot't move to home
                 return "outcome1" #Go To Idle state
+            
+                # blackboard["state_info"]["initialize"] = False
+                # blackboard["state_info"]["error"] = True
+                # return "outcome2" #Go To Idle state
             else:
                 if motion_finished:  #Ready to move
                     if init_buttons:
                         blackboard["state_info"]["initialize"] = True
+                        blackboard["state_info"]["troubleshotting"] = False
                         blackboard["set_home"] = True
                         set_home(set_home_publisher,blackboard["set_home"]) #move to home
                         return "outcome3"
@@ -61,7 +66,7 @@ class InitializeState(State):
             print("error")
             blackboard["state_info"]["initialize"] = False
             blackboard["state_info"]["error"] = True
-            return "outcome3"
+            return "outcome2"
 class IdleState(State):
     def __init__(self) -> None:
         super().__init__(outcomes=["outcome1","outcome2","outcome3","outcome4"])
@@ -90,7 +95,7 @@ class IdleState(State):
             blackboard["state_info"]["initialize"] = False
             blackboard["state_info"]["idle"] = False
             blackboard["state_info"]["error"] = True
-            return "outcome3"
+            return "outcome2"
         
 class BatteryPickerState(State):
     def __init__(self) -> None:
@@ -123,7 +128,7 @@ class BatteryPickerState(State):
             blackboard["state_info"]["initialize"] = False
             blackboard["state_info"]["batterypicker"] = False
             blackboard["state_info"]["error"] = True
-            return "outcome3"
+            return "outcome2"
             
 class BatteryAssemblerState(State):
     def __init__(self) -> None:
@@ -156,7 +161,7 @@ class BatteryAssemblerState(State):
             blackboard["state_info"]["initialize"] = False
             blackboard["state_info"]["batteryassembler"] = False
             blackboard["state_info"]["error"] = True
-            return "outcome3"
+            return "outcome2"
 
 class ErrorState(State):
     def __init__(self) -> None:
@@ -179,7 +184,6 @@ class TroubleshootingState(State):
 
     def execute(self, blackboard: Blackboard) -> str:
         yasmin.YASMIN_LOG_INFO("Executing state Error")
-        yasmin.YASMIN_LOG_INFO(blackboard["Initialize_str"])
         init_buttons = blackboard["button_cmd"]["init_button"]
 
         if init_buttons:
