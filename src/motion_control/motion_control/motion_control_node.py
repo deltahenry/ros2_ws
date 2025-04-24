@@ -18,7 +18,9 @@ class MotionControlNode(Node):
         self.v_des = self.get_parameter('v_des').get_parameter_value().double_value
         self.batch_size = self.get_parameter('batch_size').get_parameter_value().integer_value
 
-        self.motor_home_position = [164.5, 253.5, 0.0] #m1 len ...
+        self.motor_home_position = [0.0, 0.0, 0.0] #m1 len ...
+        self.real_motor_home_position = [164.5, 253.5, 0.0] #m1 len ...
+        
         self.home_position = [209.0, 0.0, 0.0]#x y yaw
         self.current_pose = [0.0, 0.0, 0.0]#x y yaw
         self.current_motor_pos = [0.0, 0.0, 0.0]#m1 len ...
@@ -121,11 +123,11 @@ class MotionControlNode(Node):
 
             J1_x = x + cos(yaw)*P_J1MC[0,0] - sin(yaw)*P_J1MC[1,0]
             J1_y = 0 + sin(yaw)*P_J1MC[0,0] - cos(yaw)*P_J1MC[1,0]
-            M1 = J1_x + sqrt(205.5**2-(abs(J1_y)-abs(P_J1MC[1,0]))**2)
+            M1 = J1_x + sqrt(205.5**2-(abs(J1_y)-abs(P_J1MC[1,0]))**2)-self.real_motor_home_position[0]
 
             J2_x = x + cos(yaw)*P_J2MC[0,0] - sin(yaw)*P_J2MC[1,0]
             J2_y = 0 + sin(yaw)*P_J2MC[0,0] - cos(yaw)*P_J2MC[1,0]
-            M2 = J2_x - sqrt(205.5**2-(abs(J2_y)-abs(P_J2MC[1,0]))**2)
+            M2 = J2_x - sqrt(205.5**2-(abs(J2_y)-abs(P_J2MC[1,0]))**2)-self.real_motor_home_position[1]
 
             M3 = y #need to change
 
