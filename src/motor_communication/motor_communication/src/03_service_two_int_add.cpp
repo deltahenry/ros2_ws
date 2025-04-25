@@ -1,5 +1,5 @@
 /** ******************************************************
-	* @file		01_publisher.cpp
+	* @file		03_service_two_int_add.cpp
 	* @author	Tsai,Li-chun
 	******************************************************
 **	**/
@@ -7,10 +7,12 @@
 
 /* System Includes ------------------------------------------*/
 /* System Includes Begin */
+#include <memory>
 /* System Includes End */
 /* User Includes --------------------------------------------*/
 /* User Includes Begin */
-#include "classAPI_publisher.hpp"
+#include "rclcpp/rclcpp.hpp"
+#include "uros_interface/srv/es_mcmd.hpp"
 /* User Includes End */
 
 /* namespace ------------------------------------------------*/
@@ -49,6 +51,20 @@
 /* ---------------------------------------------------------*/
 /* Program Begin */
 
+/** * @brief  service 服務中斷函式
+ 	* @param request service所需輸入參數
+ 	* @param response service返回參數
+ 	* @return Node
+**	**/
+void add(std::shared_ptr<uros_interface::srv::ESMcmd::Request> request,
+		 std::shared_ptr<uros_interface::srv::ESMcmd::Response> response)
+{
+	response->esm_state = -99;
+	// response->sum = request->a + request->b;
+	RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Incoming request, mode: %d" " lpf: %d",request->mode,request->lpf);
+	RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "sneding back reponse: [%d]\n",response->esm_state);
+}
+
 /** * @brief  Program entry point.
  	* @param argc(int) : Number of input parameters
  	* @param argv(int) : input parameters
@@ -56,19 +72,15 @@
 **	**/
 int main(int argc, char* argv[])
 {
-	/* 初始化ROS2 Node */
-	rclcpp::init(argc,argv);
-	/* 建立發佈服務物件 */
-	std::shared_ptr<publisher_motors_info> pmi = std::make_shared<publisher_motors_info>();
+	rclcpp::init(argc, argv);
+	std::shared_ptr<rclcpp::Node> node = rclcpp::Node::make_shared("esm_command_node");
+	// std::shared_ptr<rclcpp::Node> nn = std::make_shared<rclcpp::Node>("add_two_ints_service");
+	rclcpp::Service<uros_interface::srv::ESMcmd>::SharedPtr service
+		= node->create_service<uros_interface::srv::ESMcmd>("esm_command",&add);
 
-	/* main loop, 按下ctrl+C跳出 */
-	while( rclcpp::ok() )
-	{
-		/* 更新物件執行 */
-		rclcpp::spin_some(pmi);
-	}
+	RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Ready to add two ints.");
 
-	/* 關閉Node */
+	rclcpp::spin(node);
 	rclcpp::shutdown();
 }
 
@@ -78,4 +90,4 @@ int main(int argc, char* argv[])
 /* ---------------------------------------------------------*/
 
 
-/* ***** END OF 01_publisher.cpp ***** */
+/* ***** END OF 03_service_two_int_add.cpp ***** */

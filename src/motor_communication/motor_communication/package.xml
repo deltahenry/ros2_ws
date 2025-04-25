@@ -11,6 +11,8 @@
 
   <depend>rclcpp</depend>
   <depend>motor_info_interface</depend>
+  <depend>custom_msgs</depend>
+  <depend>uros_interface</depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
