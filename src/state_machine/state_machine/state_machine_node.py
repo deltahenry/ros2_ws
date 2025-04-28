@@ -7,7 +7,7 @@ import yasmin
 from yasmin import State, Blackboard, StateMachine
 from yasmin_ros import set_ros_loggers
 from yasmin_viewer import YasminViewerPub
-from std_msgs.msg import String,Float64MultiArray,Bool
+from std_msgs.msg import String,Float32MultiArray,Bool
 from custom_msgs.msg import StateInfo,ButtonCmd,PoseIncrement,InterfaceMultipleMotors,InterfaceSingleMotor
 
 
@@ -17,7 +17,7 @@ def set_home(set_home_publisher,set_home_data):
     set_home_publisher.publish(msg)
 
 def position_cmd(publisher,x_cmd,y_cmd,yaw_cmd):
-    msg = Float64MultiArray()
+    msg = Float32MultiArray()
     msg.data =[x_cmd,y_cmd,yaw_cmd]
     print("X_cmd",x_cmd)
     print("Y_cmd",y_cmd)
@@ -46,10 +46,7 @@ class InitializeState(State):
                 blackboard["set_home"] = False
                 set_home(set_home_publisher,blackboard["set_home"]) #dot't move to home
                 return "outcome1" #Go To Idle state
-            
-                # blackboard["state_info"]["initialize"] = False
-                # blackboard["state_info"]["error"] = True
-                # return "outcome2" #Go To Idle state
+        
             else:
                 if motion_finished:  #Ready to move
                     if init_buttons:
@@ -107,9 +104,8 @@ class BatteryPickerState(State):
         position_cmd_publisher = blackboard["position_cmd_publisher"]
         cabinet_line_button = blackboard["button_cmd"]["cabinet_line_button"]
         motor_ok = blackboard["motor_ok"]
-        x_cmd = blackboard["pos_cmd"]["x"] 
-        y_cmd = blackboard["pos_cmd"]["y"] 
-        yaw_cmd = blackboard["pos_cmd"]["yaw"] 
+        pos_cmd = [blackboard["pos_cmd"]["x"] ,blackboard["pos_cmd"]["y"] ,blackboard["pos_cmd"]["yaw"]]
+        pos_cmd_past = [blackboard["pos_cmd"]["x_past"] ,blackboard["pos_cmd"]["y_past"] ,blackboard["pos_cmd"]["yaw_past"]]
         
         if motor_ok:
             if cabinet_line_button:
@@ -118,8 +114,11 @@ class BatteryPickerState(State):
                 return "outcome1" #run battery assembler state
             else:
                 if motion_finished:
-                    position_cmd(position_cmd_publisher,x_cmd,y_cmd,yaw_cmd) #publish position cmd
-                    print("123")
+                    if any(a != b for a,b in zip(pos_cmd,pos_cmd_past)):
+                        position_cmd(position_cmd_publisher,pos_cmd[0],pos_cmd[1],pos_cmd[2]) #publish position cmd
+                        blackboard["pos_cmd"]["x_past"] = pos_cmd[0]
+                        blackboard["pos_cmd"]["y_past"] = pos_cmd[1]
+                        blackboard["pos_cmd"]["yaw_past"] = pos_cmd[2]
                     return "outcome3"
                 else:
                     return "outcome3"
@@ -140,9 +139,8 @@ class BatteryAssemblerState(State):
         position_cmd_publisher = blackboard["position_cmd_publisher"]
         cabinet_line_button = blackboard["button_cmd"]["cabinet_line_button"]
         motor_ok = blackboard["motor_ok"]
-        x_cmd = blackboard["pos_cmd"]["x"] 
-        y_cmd = blackboard["pos_cmd"]["y"] 
-        yaw_cmd = blackboard["pos_cmd"]["yaw"] 
+        pos_cmd = [blackboard["pos_cmd"]["x"] ,blackboard["pos_cmd"]["y"] ,blackboard["pos_cmd"]["yaw"]]
+        pos_cmd_past = [blackboard["pos_cmd"]["x_past"] ,blackboard["pos_cmd"]["y_past"] ,blackboard["pos_cmd"]["yaw_past"]]
 
         if motor_ok:
             if not cabinet_line_button:    #cabinet off assemble finished
@@ -151,8 +149,11 @@ class BatteryAssemblerState(State):
                 return "outcome1"  #return to idle state
             else:
                 if motion_finished:
-                    position_cmd(position_cmd_publisher,x_cmd,y_cmd,yaw_cmd) #publish position cmd
-                    print("123")
+                    if any(a != b for a,b in zip(pos_cmd,pos_cmd_past)):
+                        position_cmd(position_cmd_publisher,pos_cmd[0],pos_cmd[1],pos_cmd[2]) #publish position cmd
+                        blackboard["pos_cmd"]["x_past"] = pos_cmd[0]
+                        blackboard["pos_cmd"]["y_past"] = pos_cmd[1]
+                        blackboard["pos_cmd"]["yaw_past"] = pos_cmd[2]
                     return "outcome3"
                 else:
                     return "outcome3"
@@ -204,7 +205,7 @@ class StateMachineNode(Node):
         #publiher
         self.set_home_pub = self.create_publisher(Bool, '/set_home_cmd', 10) #to_motion_control
         self.state_info_pub = self.create_publisher(StateInfo, '/state_info', 10) #to_gui_node
-        self.position_cmd_pub = self.create_publisher(Float64MultiArray,'position_cmd', 10)
+        self.position_cmd_pub = self.create_publisher(Float32MultiArray,'position_cmd', 10)
         self.servo_switch_pub = self.create_publisher(Bool, '/servo_switch', 10) #to_motor node
 
         #init motor_state_info
@@ -212,9 +213,7 @@ class StateMachineNode(Node):
         self.init_motors_info()
 
         #init pos_cmd
-        self.x = 209.0
-        self.y = 0.0
-        self.yaw = 0.0
+        self.init_pos_cmd()
 
         #open the blackboard for shareing data in the FSM
         self.blackboard = Blackboard()
@@ -223,7 +222,10 @@ class StateMachineNode(Node):
         self.blackboard["pos_cmd"] = {
             "x": self.x,
             "y": self.y,
-            "yaw": self.yaw
+            "yaw": self.yaw,
+            "x_past": 0.0,
+            "y_past": 0.0,
+            "yaw_past": 0.0
         }
 
         self.blackboard["set_home"] = False
@@ -327,8 +329,7 @@ class StateMachineNode(Node):
         YasminViewerPub("yasmin_demo", self.sm)
 
         # Timer to periodically publish data to ui_node
-        self.timer = self.create_timer(1.0, self.update_fsm)
-
+        self.timer = self.create_timer(1, self.update_fsm)
 
     def button_cmd_callback(self,msg:ButtonCmd):
         # print("inside bmc callback")
@@ -345,7 +346,7 @@ class StateMachineNode(Node):
         if self.blackboard["motion_finished"]:
             base_increments = {
                 0: 1.0,        # x
-                1: 1.0,        # y
+                1: 5.0,        # y
                 2: 0.017       # yaw (1 degree in radians)
             }
             # Define a scaling factor for step size
@@ -406,6 +407,11 @@ class StateMachineNode(Node):
         self.motors_info.motor_info[1].servo_state = True
         self.motors_info.motor_info[2].id = 3
         self.motors_info.motor_info[2].servo_state = True
+
+    def init_pos_cmd(self):
+        self.x = 481.0
+        self.y = 0.0
+        self.yaw = 0.0
 
     def check_device_state(self):
         #check motor:

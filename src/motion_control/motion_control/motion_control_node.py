@@ -1,6 +1,6 @@
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Float64MultiArray, Bool
+from std_msgs.msg import Float32MultiArray, Bool
 from geometry_msgs.msg import Pose2D
 import numpy as np
 import math
@@ -19,9 +19,9 @@ class MotionControlNode(Node):
         self.batch_size = self.get_parameter('batch_size').get_parameter_value().integer_value
 
         self.motor_home_position = [0.0, 0.0, 0.0] #m1 len ...
-        self.real_motor_home_position = [164.5, 253.5, 0.0] #m1 len ...
+        self.real_motor_home_position = [436.5, 525.5, 0.0] #m1 len ...
         
-        self.home_position = [209.0, 0.0, 0.0]#x y yaw
+        self.home_position = [481.0, 0.0, 0.0]#x y yaw
         self.current_pose = [0.0, 0.0, 0.0]#x y yaw
         self.current_motor_pos = [0.0, 0.0, 0.0]#m1 len ...
 
@@ -41,12 +41,12 @@ class MotionControlNode(Node):
 
         #subscriber
         self.set_home_sub = self.create_subscription(Bool, '/set_home_cmd', self.set_home_callback, 10)
-        self.pos_cmd_sub = self.create_subscription(Float64MultiArray, '/position_cmd', self.position_cmd_callback, 10)    
+        self.pos_cmd_sub = self.create_subscription(Float32MultiArray, '/position_cmd', self.position_cmd_callback, 10)    
         self.motors_info_sub = self.create_subscription(InterfaceMultipleMotors,'/multi_motor_info',self.motors_info_callback,10)
         self.state_info_sub = self.create_subscription(StateInfo,'/state_info',self.state_info_callback,10)
 
         #publisher
-        self.motor_pub = self.create_publisher(Float64MultiArray, '/motor_position_ref', 10) #motor_node
+        self.motor_pub = self.create_publisher(Float32MultiArray, '/motor_position_ref', 10) #motor_node
         self.motion_finished_pub = self.create_publisher(Bool, '/motion_finished', 10)
         self.init_finished_pub = self.create_publisher(Bool, '/init_finished', 10)
 
@@ -75,7 +75,7 @@ class MotionControlNode(Node):
         self.M2_fb_pos = 0.0
         self.M3_fb_pos = 0.0
 
-    def position_cmd_callback(self, msg:Float64MultiArray):
+    def position_cmd_callback(self, msg:Float32MultiArray):
         x_start, y_start, yaw_start = self.current_pose
         x_end, y_end, yaw_end = msg.data[0], msg.data[1], msg.data[2]
         self.pos_cmd = [x_end, y_end, yaw_end]
@@ -178,7 +178,7 @@ class MotionControlNode(Node):
 
         # Flatten and publish
         flat_positions = [val for pos in motor_positions for val in pos]
-        msg = Float64MultiArray()
+        msg = Float32MultiArray()
         msg.data = flat_positions
         self.motor_pub.publish(msg)
         # self.get_logger().info(f"Published batch: {flat_positions}")
@@ -201,19 +201,24 @@ class MotionControlNode(Node):
 
     def timer_callback(self):
         #get set home and position
-        if self.has_new_home or self.has_new_position:
+        if self.has_new_home:
             self.is_idle = False
             self.publish_motor_positions()
             print("in_timer_callback")
             self.motion_finished_pub.publish(Bool(data=False))     # publish trajectory is unfinished the FSM wouldn't publish
+            if len(self.home_queue) == 0:# Only check for completion AFTER publishing
+                self.get_logger().info("Home trajectory publish complete.")
+                self.check_home_motion = True
 
-        # Only check for completion AFTER publishing
-        if self.has_new_home and len(self.home_queue) == 0:
-            self.get_logger().info("Home trajectory publish complete.")
-            self.check_home_motion = True
-        elif self.has_new_position  and len(self.position_queue) == 0:
-            self.get_logger().info("Position trajectory publish complete.")
-            self.check_position_motion = True
+        #get set home and position
+        elif self.has_new_position:
+            self.is_idle = False
+            self.publish_motor_positions()
+            print("in_timer_callback")
+            self.motion_finished_pub.publish(Bool(data=False))     # publish trajectory is unfinished the FSM wouldn't publish
+            if len(self.position_queue) == 0:
+                self.get_logger().info("Position trajectory publish complete.")
+                self.check_position_motion = True
 
         #arrive home position?
         if self.check_home_motion:

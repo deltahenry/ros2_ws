@@ -1,5 +1,5 @@
 from custom_msgs.msg import StateInfo, ButtonCmd,PoseIncrement,InterfaceSingleMotor,InterfaceMultipleMotors
-from std_msgs.msg import String,Bool,Float64MultiArray
+from std_msgs.msg import String,Bool,Float32MultiArray
 from rclpy.node import Node
 import rclpy
 
@@ -13,7 +13,7 @@ class UINode(Node):
         #Subscribers
         self.state_info_subscriber = self.create_subscription(StateInfo, '/state_info', self.state_info_callback ,10)
         self.set_home_subscriber = self.create_subscription(Bool, '/set_home_cmd',self.set_home_callback, 10) #to_motion_control
-        self.motor_pub = self.create_subscription(Float64MultiArray, '/motor_position_ref',self.motor_cmd_callback, 10) #motor_node
+        self.motor_pub = self.create_subscription(Float32MultiArray, '/motor_position_ref',self.motor_cmd_callback, 10) #motor_node
 
         self.set_home = False
 
@@ -44,14 +44,14 @@ class UINode(Node):
         self.motors_info.quantity = 3
         self.motors_info.motor_info = [InterfaceSingleMotor() for _ in range(self.motors_info.quantity)]
         self.motors_info.motor_info[0].id = 1
-        self.motors_info.motor_info[0].fb_position = 330.0
+        self.motors_info.motor_info[0].fb_position = 20.0
         self.motors_info.motor_info[1].id = 2
-        self.motors_info.motor_info[1].fb_position = 400.0
+        self.motors_info.motor_info[1].fb_position = 20.0
         self.motors_info.motor_info[2].id = 3
         self.motors_info.motor_info[2].fb_position = 0.0
         return self.motors_info
     
-    def motor_cmd_callback(self,msg:Float64MultiArray):
+    def motor_cmd_callback(self,msg:Float32MultiArray):
         # print(msg.data[27])
         self.motors_info.motor_info[0].fb_position = msg.data[27]
         self.motors_info.motor_info[1].fb_position = msg.data[28]

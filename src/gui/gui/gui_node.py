@@ -344,7 +344,6 @@ class MyGUI(QWidget):
         self.cabinet_line_button = copy.deepcopy(self.node_sub.state_info.batteryassembler)
         self.manual_button = copy.deepcopy(self.node_sub.state_info.troubleshotting)
 
-
     def update_frame(self):
         button_cmd = {
             "init_cmd":self.init_button,
@@ -390,7 +389,7 @@ class MyGUI(QWidget):
             RGB_cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
             self.latest_frame = RGB_cv_image
 
-            frame = self.realsense_node.cv_image
+            frame = self.latest_frame
             h, w, ch = frame.shape
             bytes_per_line = ch * w
             qimg = QImage(frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
