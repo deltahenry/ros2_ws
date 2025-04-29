@@ -1,0 +1,21 @@
+{
+	"configurations": [
+		{
+			"name": "Linux",
+			"includePath": [
+				"/usr/include/**",
+				"/opt/ros/humble/include/**",
+				"/home/richie/ros2_ws/src/motor_communication/motor_communication/include/motor_communication/**",
+				"/home/richie/ros2_ws/install/motor_info_interface/include/motor_info_interface/**",
+				"/home/richie/ros2_ws/install/uros_interface/include/uros_interface/**",
+				"/home/richie/ros2_ws/install/custom_msgs/include/custom_msgs/**"
+			],
+			"defines": [],
+			"compilerPath": "/usr/bin/gcc",
+			"cStandard": "c17",
+			"cppStandard": "gnu++17",
+			"intelliSenseMode": "linux-gcc-x64"
+		}
+	],
+	"version": 4
+}

@@ -1,0 +1,6 @@
+bool servo_status
+uint8 mode
+uint8 speed_limit
+uint8 lpf
+---
+int8 esm_state
