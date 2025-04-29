@@ -1,1 +1,0 @@
-uros_interface/JointArr[] theta_2d_arr
