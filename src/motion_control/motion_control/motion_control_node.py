@@ -5,7 +5,7 @@ from geometry_msgs.msg import Pose2D
 import numpy as np
 import math
 from custom_msgs.msg import InterfaceMultipleMotors, InterfaceSingleMotor,StateInfo
-
+from uros_interface.msg import Joint2DArr,JointArr
 
 
 class MotionControlNode(Node):
@@ -18,10 +18,10 @@ class MotionControlNode(Node):
         self.v_des = self.get_parameter('v_des').get_parameter_value().double_value
         self.batch_size = self.get_parameter('batch_size').get_parameter_value().integer_value
 
-        self.motor_home_position = [0.0, 0.0, 0.0] #m1 len ...
+        self.motor_home_position = [-136.0,-136.0, 0.0] #m1 len ...
         self.real_motor_home_position = [436.5, 525.5, 0.0] #m1 len ...
         
-        self.home_position = [481.0, 0.0, 0.0]#x y yaw
+        self.home_position = [345.0, 0.0, 0.0]#x y yaw
         self.current_pose = [0.0, 0.0, 0.0]#x y yaw
         self.current_motor_pos = [0.0, 0.0, 0.0]#m1 len ...
 
@@ -36,6 +36,7 @@ class MotionControlNode(Node):
 
         self.check_home_motion = False
         self.check_position_motion = False
+        self.check_target_array = []
 
         self.is_idle = True #pub ready to move(in the beginning)
 
@@ -49,10 +50,10 @@ class MotionControlNode(Node):
         self.motor_pub = self.create_publisher(Float32MultiArray, '/motor_position_ref', 10) #motor_node
         self.motion_finished_pub = self.create_publisher(Bool, '/motion_finished', 10)
         self.init_finished_pub = self.create_publisher(Bool, '/init_finished', 10)
+        self.esp_control_publisher = self.create_publisher(Joint2DArr,'/theta_command',10)
 
         #init motor_state_info
         self.motor_ok = False
-        self.init_motors_info()
         #init state_info
         self.init_state_info()
 
@@ -69,11 +70,6 @@ class MotionControlNode(Node):
 
     def state_info_callback(self, msg:StateInfo):
         self.state_info = msg
-
-    def init_motors_info(self):
-        self.M1_fb_pos = 0.0
-        self.M2_fb_pos = 0.0
-        self.M3_fb_pos = 0.0
 
     def position_cmd_callback(self, msg:Float32MultiArray):
         x_start, y_start, yaw_start = self.current_pose
@@ -96,11 +92,8 @@ class MotionControlNode(Node):
             self.has_new_home = True
 
     def motors_info_callback(self, msg:InterfaceMultipleMotors):
-        self.M1_fb_pos= msg.motor_info[0].fb_position
-        self.M2_fb_pos= msg.motor_info[1].fb_position
-        self.M3_fb_pos= msg.motor_info[2].fb_position
         self.current_motor_pos = [msg.motor_info[0].fb_position,msg.motor_info[1].fb_position,msg.motor_info[2].fb_position]
-        # print(self.current_motor_pos)
+        print(self.current_motor_pos)
 
     def generate_trajectory(self, x_start, y_start, yaw_start, x_end, y_end, yaw_end):
         dx, dy, dyaw = x_end - x_start, y_end - y_start, yaw_end - yaw_start
@@ -161,14 +154,10 @@ class MotionControlNode(Node):
             self.home_queue = self.home_queue[self.batch_size:]
             motor_positions = batch  # already motor trajectory
 
-            # queue_type = 'home'
-
         elif self.has_new_position and len(self.position_queue) > 0:
             batch = self.position_queue[:self.batch_size]
             self.position_queue = self.position_queue[self.batch_size:]
             motor_positions = self.inverse_kinematics_batch(batch)
-
-            # queue_type = 'position'
 
         else:
             return  # Nothing to do
@@ -183,29 +172,25 @@ class MotionControlNode(Node):
         self.motor_pub.publish(msg)
         # self.get_logger().info(f"Published batch: {flat_positions}")
 
-        # # Only check for completion AFTER publishing
-        # if queue_type == 'home' and len(self.home_queue) == 0:
-        #     self.has_new_home = False
-        #     self.get_logger().info("Home trajectory complete.")
-        #     self.check_motion = True
-        # elif queue_type == 'position' and len(self.position_queue) == 0:
-        #     self.has_new_position = False
-        #     self.get_logger().info("Position trajectory complete.")
-        #     self.check_motion = True
-
     def is_motor_at_target(self):
         if not self.last_sent_batch:
             return False
         last_target = np.array(self.last_sent_batch[-1])
         return np.allclose(self.current_motor_pos,last_target,atol=0.01)
 
+    def pub_esp_cmd(self,pos_ref_queue):
+        msg = Joint2DArr()
+        msg.theta_2d_arr = [JointArr() for _ in range(1)]
+        msg.theta_2d_arr[0].theta_arr = [float(pos_ref_queue[0]),float(pos_ref_queue[1]),float(pos_ref_queue[2]),0.0,0.0,0.0]
+        self.esp_control_publisher.publish(msg)
+
     def timer_callback(self):
         #get set home and position
         if self.has_new_home:
             self.is_idle = False
-            self.publish_motor_positions()
-            print("in_timer_callback")
             self.motion_finished_pub.publish(Bool(data=False))     # publish trajectory is unfinished the FSM wouldn't publish
+            self.publish_motor_positions()
+
             if len(self.home_queue) == 0:# Only check for completion AFTER publishing
                 self.get_logger().info("Home trajectory publish complete.")
                 self.check_home_motion = True
@@ -213,9 +198,9 @@ class MotionControlNode(Node):
         #get set home and position
         elif self.has_new_position:
             self.is_idle = False
-            self.publish_motor_positions()
-            print("in_timer_callback")
             self.motion_finished_pub.publish(Bool(data=False))     # publish trajectory is unfinished the FSM wouldn't publish
+            self.publish_motor_positions()
+
             if len(self.position_queue) == 0:
                 self.get_logger().info("Position trajectory publish complete.")
                 self.check_position_motion = True
@@ -231,7 +216,8 @@ class MotionControlNode(Node):
                 self.current_pose = self.home_position          #update the current pose = home position
                 print("self.current_pose",self.current_pose)
             else: 
-                print("in_check_home_motion")
+                # print("in_check_home_motion")
+                self.pub_esp_cmd(self.last_sent_batch[-1])
                 self.motion_finished_pub.publish(Bool(data=False))
 
         if self.check_position_motion:
@@ -244,6 +230,7 @@ class MotionControlNode(Node):
                 print("self.current_pose",self.current_pose)
             else: 
                 print("in_check_position_motion")
+                self.pub_esp_cmd(self.last_sent_batch[-1])
                 self.motion_finished_pub.publish(Bool(data=False))
 
         if self.is_idle and not self.has_new_home and not self.has_new_position:

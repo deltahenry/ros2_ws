@@ -44,9 +44,9 @@ class UINode(Node):
         self.motors_info.quantity = 3
         self.motors_info.motor_info = [InterfaceSingleMotor() for _ in range(self.motors_info.quantity)]
         self.motors_info.motor_info[0].id = 1
-        self.motors_info.motor_info[0].fb_position = 20.0
+        self.motors_info.motor_info[0].fb_position = -136.0
         self.motors_info.motor_info[1].id = 2
-        self.motors_info.motor_info[1].fb_position = 20.0
+        self.motors_info.motor_info[1].fb_position = -136.0
         self.motors_info.motor_info[2].id = 3
         self.motors_info.motor_info[2].fb_position = 0.0
         return self.motors_info

@@ -409,7 +409,7 @@ class StateMachineNode(Node):
         self.motors_info.motor_info[2].servo_state = True
 
     def init_pos_cmd(self):
-        self.x = 481.0
+        self.x = 345.0
         self.y = 0.0
         self.yaw = 0.0
 
