@@ -26,6 +26,10 @@
 			"name": "(motor_communication)-esm_test"
 		},
 		{
+			"path": "src/io_communication/io_communication__interface",
+			"name": "(io_communication)-io_communication__interface"
+		},
+		{
 			"path": "src/custom_msgs"
 		},
 		{

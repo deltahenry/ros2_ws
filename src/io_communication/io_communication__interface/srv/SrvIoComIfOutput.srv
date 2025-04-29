@@ -1,0 +1,4 @@
+string read_or_write
+string pin
+---
+int64 result
