@@ -66,7 +66,7 @@ motor_servo_ctl::motor_servo_ctl():
 
 	/* create publisher object for InterfaceMultipleMotors */
 	_publisher_motors_info = this->create_publisher<custom_msgs::msg::InterfaceMultipleMotors>(
-		topicname_motors_servo_state,
+		topicname_multi_motor_info,
 		rclcpp::QoS(10)	);
 	
 	/*  */

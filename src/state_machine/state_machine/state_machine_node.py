@@ -7,7 +7,7 @@ import yasmin
 from yasmin import State, Blackboard, StateMachine
 from yasmin_ros import set_ros_loggers
 from yasmin_viewer import YasminViewerPub
-from std_msgs.msg import String,Float32MultiArray,Bool
+from std_msgs.msg import String,Float32MultiArray,Bool,Int32
 from custom_msgs.msg import StateInfo,ButtonCmd,PoseIncrement,InterfaceMultipleMotors,InterfaceSingleMotor
 
 
@@ -201,6 +201,7 @@ class StateMachineNode(Node):
         self.motion_finished_sub = self.create_subscription(Bool,'/motion_finished',self.motion_finished_callback,10)
         self.init_finished_sub = self.create_subscription(Bool,'/init_finished',self.init_finished_callback,10)
         self.pose_increment_sub = self.create_subscription(PoseIncrement,'pose_increment',self.pose_increment_callback,10)
+        self.esm_info_sub = self.create_subscription(Int32,'/esm_alarm',self.esm_info_callback,10)
 
         #publiher
         self.set_home_pub = self.create_publisher(Bool, '/set_home_cmd', 10) #to_motion_control
@@ -209,6 +210,7 @@ class StateMachineNode(Node):
         self.servo_switch_pub = self.create_publisher(Bool, '/servo_switch', 10) #to_motor node
 
         #init motor_state_info
+        self.esm_info = -99
         self.motor_ok = False
         self.init_motors_info()
 
@@ -331,6 +333,10 @@ class StateMachineNode(Node):
         # Timer to periodically publish data to ui_node
         self.timer = self.create_timer(1, self.update_fsm)
 
+    def esm_info_callback(self,msg:Int32):
+        # print("esm:",msg.data)
+        self.esm_info = msg.data
+
     def button_cmd_callback(self,msg:ButtonCmd):
         # print("inside bmc callback")
 
@@ -415,13 +421,18 @@ class StateMachineNode(Node):
 
     def check_device_state(self):
         #check motor:
-        for i in range(self.motors_info.quantity):
-            if self.motors_info.motor_info[i].servo_state:
-                all_ok = True
-                print(f"M{i+1} is ok")
-            else:
-                print(f"M{i+1} is failed")
-                all_ok = False
+        # for i in range(self.motors_info.quantity):
+        #     if self.motors_info.motor_info[i].servo_state:
+        #         all_ok = True
+        #         print(f"M{i+1} is ok")
+        #     else:
+        #         print(f"M{i+1} is failed")
+        #         all_ok = False
+        if self.esm_info == 0:
+            all_ok = True
+        else:
+            all_ok = False
+
         return all_ok
             
     def update_fsm(self):
