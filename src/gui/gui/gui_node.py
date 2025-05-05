@@ -69,7 +69,7 @@ class RosNode_sub(Node):
 
     def motion_finished_callback(self,msg:Bool):
         self.motion_finished = msg.data  #False = the motor is moving
-        print("motion_finished",self.motion_finished)
+        # print("motion_finished",self.motion_finished)
 class RealsenseSubscriber(Node):
     def __init__(self):
         super().__init__('realsense_subscriber')
@@ -89,28 +89,6 @@ class RealsenseSubscriber(Node):
         try:
             # ROS Image → OpenCV Image
             self.cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
-            
-            # # 加上紅色圓點（BGR = (0, 0, 255)）
-            # h, w, _ = cv_image.shape
-            # points = [
-            # (50, 50),
-            # (w - 50, 50),
-            # (50, h - 50),
-            # (w - 50, h - 50)
-            # ]
-            # print("pick_in_image",self.node_sub.state_info.batterypicker)
-            # if  self.node_sub.state_info.batterypicker:
-            #     for pt in points:
-            #         cv2.circle(cv_image, pt, radius=10, color=(0, 0, 255), thickness=3)
-            # elif self.node_sub.state_info.batteryassembler:
-            #     for pt in points:
-            #         cv2.circle(cv_image, pt, radius=10, color=(0, 255, 0), thickness=3)
-            
-            # # OpenCV BGR → RGB
-            # cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
-            
-            # self.latest_frame = cv_image
-            # print("Received img")
         except Exception as e:
             self.get_logger().error(f"Error converting image: {e}")   
         
@@ -377,7 +355,7 @@ class MyGUI(QWidget):
             (50, h - 50),
             (w - 50, h - 50)
             ]
-            print("pick_in_image",self.node_sub.state_info.batterypicker)
+            # print("pick_in_image",self.node_sub.state_info.batterypicker)
             if  self.node_sub.state_info.batterypicker:
                 for pt in points:
                     cv2.circle(cv_image, pt, radius=10, color=(0, 0, 255), thickness=3)

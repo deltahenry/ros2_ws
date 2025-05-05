@@ -80,7 +80,7 @@ class MotionControlNode(Node):
         position_trajectory = self.pad_trajectory(position_trajectory)
         self.position_queue = position_trajectory.copy()
         self.has_new_position = True
-        print(self.pos_cmd)
+        # print(self.pos_cmd)
 
     def set_home_callback(self, msg):
         if msg.data:
@@ -93,7 +93,7 @@ class MotionControlNode(Node):
 
     def motors_info_callback(self, msg:InterfaceMultipleMotors):
         self.current_motor_pos = [msg.motor_info[0].fb_position,msg.motor_info[1].fb_position,msg.motor_info[2].fb_position]
-        print(self.current_motor_pos)
+        # print(self.current_motor_pos)
 
     def generate_trajectory(self, x_start, y_start, yaw_start, x_end, y_end, yaw_end):
         dx, dy, dyaw = x_end - x_start, y_end - y_start, yaw_end - yaw_start
@@ -127,7 +127,7 @@ class MotionControlNode(Node):
             # print("M1,M2",M1,M2)
             motor_trajectory_batch.append([M1,M2,M3])
         
-        print("motor",motor_trajectory_batch)
+        # print("motor",motor_trajectory_batch)
 
         return motor_trajectory_batch
 

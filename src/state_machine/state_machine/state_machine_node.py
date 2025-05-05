@@ -29,7 +29,7 @@ class InitializeState(State):
         super().__init__(["outcome1", "outcome2", "outcome3"])
 
     def execute(self, blackboard: Blackboard) -> str:
-        yasmin.YASMIN_LOG_INFO("Executing state Initialize")
+        # yasmin.YASMIN_LOG_INFO("Executing state Initialize")
         init_buttons = blackboard["button_cmd"]["init_button"]
         motion_finished = blackboard["motion_finished"]
         init_finished = blackboard["init_finished"]
@@ -69,7 +69,7 @@ class IdleState(State):
         super().__init__(outcomes=["outcome1","outcome2","outcome3","outcome4"])
 
     def execute(self, blackboard: Blackboard) -> str:
-        yasmin.YASMIN_LOG_INFO("Executing state Idle")
+        # yasmin.YASMIN_LOG_INFO("Executing state Idle")
         battery_line_button = blackboard["button_cmd"]["battery_line_button"]
         motor_ok = blackboard["motor_ok"]
 
@@ -99,7 +99,7 @@ class BatteryPickerState(State):
         super().__init__(outcomes=["outcome1","outcome2","outcome3"])
 
     def execute(self, blackboard: Blackboard) -> str:
-        yasmin.YASMIN_LOG_INFO("Executing state BatteryGripper")
+        # yasmin.YASMIN_LOG_INFO("Executing state BatteryGripper")
         motion_finished = blackboard["motion_finished"]
         position_cmd_publisher = blackboard["position_cmd_publisher"]
         cabinet_line_button = blackboard["button_cmd"]["cabinet_line_button"]
@@ -134,7 +134,7 @@ class BatteryAssemblerState(State):
         super().__init__(outcomes=["outcome1","outcome2","outcome3"])
 
     def execute(self, blackboard: Blackboard) -> str:
-        yasmin.YASMIN_LOG_INFO("Executing state BatteryAssembler")
+        # yasmin.YASMIN_LOG_INFO("Executing state BatteryAssembler")
         motion_finished = blackboard["motion_finished"]
         position_cmd_publisher = blackboard["position_cmd_publisher"]
         cabinet_line_button = blackboard["button_cmd"]["cabinet_line_button"]
@@ -169,7 +169,7 @@ class ErrorState(State):
         super().__init__(outcomes=["outcome1","outcome2"])
 
     def execute(self, blackboard: Blackboard) -> str:
-        yasmin.YASMIN_LOG_INFO("Executing state Error")
+        # yasmin.YASMIN_LOG_INFO("Executing state Error")
         manual_button = blackboard["button_cmd"]["manual_button"]
 
         if manual_button:
