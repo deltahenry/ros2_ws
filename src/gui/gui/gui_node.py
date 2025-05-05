@@ -15,6 +15,7 @@ from sensor_msgs.msg import Image
 from std_msgs.msg import Bool
 from cv_bridge import CvBridge
 import copy
+from uros_interface.srv import ESMcmd
 
 class RosNode_pub(Node):
     def __init__(self):
@@ -92,6 +93,26 @@ class RealsenseSubscriber(Node):
         except Exception as e:
             self.get_logger().error(f"Error converting image: {e}")   
         
+class RosNode_client(Node):
+    def __init__(self):
+        super().__init__('ros_service_client_node')
+        self.cli = self.create_client(ESMcmd, '/esm_command')
+        while not self.cli.wait_for_service(timeout_sec=1.0):
+            self.get_logger().warn('Waiting for /esm_command service...')
+
+    def call_servo_off(self):
+        request = ESMcmd.Request()
+        request.servo_status = False
+        request.mode = 4
+        request.speed_limit = 5
+        request.lpf = 10
+
+        future = self.cli.call_async(request)
+        rclpy.spin_until_future_complete(self, future)
+        if future.result() is not None:
+            self.get_logger().info('Service call succeeded')
+        else:
+            self.get_logger().error('Service call failed')
 class MyGUI(QWidget):
     def __init__(self):
         super().__init__()
@@ -192,10 +213,11 @@ class MyGUI(QWidget):
         # 按鈕名稱可以在這裡自定義
         right_button_names = ["初始化", "電池櫃輔助線",\
                               "夾具打開", "手動故障移除",\
-                              "機櫃輔助線", "夾具關閉"]
+                              "機櫃輔助線", "夾具關閉",\
+                              "關閉馬達"]
         for i, button_name in enumerate(right_button_names):
             # 將中文按鈕名稱轉換為對應的函數名
-            func_name = f"on_btn_{button_name.replace(' ', '').replace('初始化', 'initialize').replace('手動故障移除', 'manual_fault_reset').replace('電池櫃輔助線', 'battery_cabinet_aux').replace('機櫃輔助線', 'cabinet_aux').replace('夾具打開', 'gripper_open').replace('夾具關閉', 'gripper_close')}"
+            func_name = f"on_btn_{button_name.replace(' ', '').replace('初始化', 'initialize').replace('手動故障移除', 'manual_fault_reset').replace('電池櫃輔助線', 'battery_cabinet_aux').replace('機櫃輔助線', 'cabinet_aux').replace('夾具打開', 'gripper_open').replace('夾具關閉', 'gripper_close').replace('關閉馬達', 'servo_off')}"
             btn = QPushButton(f"{button_name}")
             btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
             btn.clicked.connect(getattr(self, func_name))
@@ -213,6 +235,8 @@ class MyGUI(QWidget):
                 self.btn_gripper_open = btn  # <-- keep a reference
             elif button_name == "夾具關閉":
                 self.btn_gripper_close = btn  # <-- keep a reference
+            elif button_name == "關閉馬達":
+                self.btn_servo_off = btn  # <-- keep a reference
 
             self.right_bottom_buttons.append(btn)
             button_grid_right.addWidget(btn, i // 3, i % 3)
@@ -251,6 +275,7 @@ class MyGUI(QWidget):
         self.node_pub = RosNode_pub()
         self.node_sub = RosNode_sub()
         self.realsense_node = RealsenseSubscriber()
+        self.ros_client = RosNode_client()
 
     def update_ros_sub(self):
         rclpy.spin_once(self.node_sub, timeout_sec=0.01)
@@ -441,6 +466,10 @@ class MyGUI(QWidget):
         self.top_right_text.setText("夾具關閉 Button clicked!")
         self.gripper_button =True
         
+    def on_btn_servo_off(self):
+        self.top_right_text.setText("Sending Servo OFF command...")
+        self.ros_client.call_servo_off()
+        self.top_right_text.setText("Servo OFF command sent.")
         
     def on_quality_high(self):
         self.top_right_text.setText("High quality selected!")

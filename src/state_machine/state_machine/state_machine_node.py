@@ -331,7 +331,7 @@ class StateMachineNode(Node):
         YasminViewerPub("yasmin_demo", self.sm)
 
         # Timer to periodically publish data to ui_node
-        self.timer = self.create_timer(1, self.update_fsm)
+        self.timer = self.create_timer(0.5, self.update_fsm)
 
     def esm_info_callback(self,msg:Int32):
         # print("esm:",msg.data)
