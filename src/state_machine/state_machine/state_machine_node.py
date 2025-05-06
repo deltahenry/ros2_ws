@@ -379,10 +379,29 @@ class StateMachineNode(Node):
             else:
                 print("Invalid axis")
 
+            #safety range:
+            y1 = -8.26*self.yaw + 475.0
+            y2 = 8.26*self.yaw + 475.0
+            y3 = -8.26*self.yaw + 215.0
+            y4 = 8.26*self.yaw + 215.0
+            
             self.blackboard["pos_cmd"]["x"] = self.x
             self.blackboard["pos_cmd"]["y"] = self.y
             self.blackboard["pos_cmd"]["yaw"] = self.yaw
 
+            # #pos cmd safety check
+            # if self.yaw >=0:
+            #     if self.x <= y1 and self.x >= y4:
+            #         self.blackboard["pos_cmd"]["x"] = self.x
+            #         self.blackboard["pos_cmd"]["y"] = self.y
+            #         self.blackboard["pos_cmd"]["yaw"] = self.yaw
+            # elif self.yaw <0:
+            #     if self.x <= y2 and self.x >= y3:
+            #         self.blackboard["pos_cmd"]["x"] = self.x
+            #         self.blackboard["pos_cmd"]["y"] = self.y
+            #         self.blackboard["pos_cmd"]["yaw"] = self.yaw
+            # else:
+            #     print("exceed safety range")
 
         else:
             print("device is running")

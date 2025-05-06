@@ -177,7 +177,7 @@ class MotionControlNode(Node):
             return False
         last_target = np.array(self.last_sent_batch[-1])
         print("motor_pos",self.current_motor_pos)
-        return np.allclose(self.current_motor_pos,last_target,atol=0.3)
+        return np.allclose(self.current_motor_pos,last_target,atol=0.1)
 
     def pub_esp_cmd(self,pos_ref_queue):
         msg = Joint2DArr()

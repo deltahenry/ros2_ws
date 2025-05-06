@@ -9,7 +9,7 @@ from PySide6.QtCore import Qt, QTimer, QSize, Signal, QObject
 
 import rclpy
 from rclpy.node import Node
-from custom_msgs.msg import ButtonCmd, PoseIncrement, StateInfo
+from custom_msgs.msg import ButtonCmd, PoseIncrement, StateInfo, InterfaceMultipleMotors, InterfaceSingleMotor
 
 from sensor_msgs.msg import Image
 from std_msgs.msg import Bool
@@ -52,6 +52,7 @@ class RosNode_sub(Node):
         self.get_logger().info('ROS 2 node initialized')
         self.state_info_sub = self.create_subscription(StateInfo,'/state_info',self.state_info_callback,10)
         self.motion_finished_sub = self.create_subscription(Bool,'/motion_finished',self.motion_finished_callback,10)
+        self.motors_info_sub = self.create_subscription(InterfaceMultipleMotors,'/multi_motor_info',self.motors_info_callback,10)
         self.motion_finished = False
         self.init_state_info()
 
@@ -71,6 +72,10 @@ class RosNode_sub(Node):
     def motion_finished_callback(self,msg:Bool):
         self.motion_finished = msg.data  #False = the motor is moving
         # print("motion_finished",self.motion_finished)
+
+    def motors_info_callback(self, msg:InterfaceMultipleMotors):
+        self.current_motor_pos = [msg.motor_info[0].fb_position,msg.motor_info[1].fb_position,msg.motor_info[2].fb_position]
+        # print("motor_info callback",self.current_motor_pos)
 class RealsenseSubscriber(Node):
     def __init__(self):
         super().__init__('realsense_subscriber')
@@ -181,13 +186,33 @@ class MyGUI(QWidget):
         self.stack_layout = QVBoxLayout()
         self.stack_text.setLayout(self.stack_layout)
 
+        #for motor_info
         self.text_mode_1x6 = QWidget()
-        grid = QGridLayout()
+        row_layout = QHBoxLayout()
+        self.motor_labels = []  # To store position/current QLabel references
         for i in range(6):
-            label = QLabel(f"Motor {i + 1}")
-            label.setAlignment(Qt.AlignCenter)
-            grid.addWidget(label, 0, i)
-        self.text_mode_1x6.setLayout(grid)
+            motor_widget = QWidget()
+            motor_layout = QVBoxLayout()
+
+            motor_title = QLabel(f"<b>Motor {i + 1}</b>")
+            position_label = QLabel("位置: ---")
+            current_label = QLabel("電流 : ---")
+
+            # Optional: set fixed width or alignment
+            motor_title.setAlignment(Qt.AlignCenter)
+            position_label.setAlignment(Qt.AlignLeft)
+            current_label.setAlignment(Qt.AlignLeft)
+
+            motor_layout.addWidget(motor_title)
+            motor_layout.addWidget(position_label)
+            motor_layout.addWidget(current_label)
+
+            motor_widget.setLayout(motor_layout)
+            row_layout.addWidget(motor_widget)
+
+            self.motor_labels.append((position_label, current_label))
+
+        self.text_mode_1x6.setLayout(row_layout)
 
         # 這裡修改為 QLabel 來顯示靜態文字，而不是 QTextEdit
         self.text_mode_plain = QLabel("""
@@ -347,6 +372,22 @@ class MyGUI(QWidget):
         self.cabinet_line_button = copy.deepcopy(self.node_sub.state_info.batteryassembler)
         self.manual_button = copy.deepcopy(self.node_sub.state_info.troubleshotting)
 
+    def update_motor_data(self):
+        motor_data_list=[
+            {'position': self.node_sub.current_motor_pos[0], 'current': 1.5},
+            {'position': self.node_sub.current_motor_pos[1], 'current': 1.1},
+            {'position': self.node_sub.current_motor_pos[2], 'current': 1.1},
+            {'position': 0.0, 'current': 0.0},
+            {'position': 0.0, 'current': 0.0},
+            {'position': 0.0, 'current': 0.0},
+        ]
+        for i, data in enumerate(motor_data_list):
+            if i < len(self.motor_labels):
+                pos_label, curr_label = self.motor_labels[i]
+                pos_label.setText(f"位置: {float(data['position']):.2f}")
+                curr_label.setText(f"電流: {float(data['current']):.2f} A")
+                
+
     def update_frame(self):
         button_cmd = {
             "init_cmd":self.init_button,
@@ -359,6 +400,7 @@ class MyGUI(QWidget):
         self.node_pub.publish_button_cmd(button_cmd)
         
         self.update_ros_sub()
+        self.update_motor_data()
 
         if self.update_count >=100:
             self.rewrite_button_cmd_state()
