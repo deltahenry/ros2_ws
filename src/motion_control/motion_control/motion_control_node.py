@@ -57,7 +57,7 @@ class MotionControlNode(Node):
         #init state_info
         self.init_state_info()
 
-        self.timer = self.create_timer(1.0 / 40.0, self.timer_callback)
+        self.timer = self.create_timer(1.0 / 25.0, self.timer_callback)
     
     def init_state_info(self):
         self.state_info = StateInfo()
@@ -93,7 +93,7 @@ class MotionControlNode(Node):
 
     def motors_info_callback(self, msg:InterfaceMultipleMotors):
         self.current_motor_pos = [msg.motor_info[0].fb_position,msg.motor_info[1].fb_position,msg.motor_info[2].fb_position]
-        # print(self.current_motor_pos)
+        print("motor_info callback",self.current_motor_pos)
 
     def generate_trajectory(self, x_start, y_start, yaw_start, x_end, y_end, yaw_end):
         dx, dy, dyaw = x_end - x_start, y_end - y_start, yaw_end - yaw_start
@@ -176,6 +176,7 @@ class MotionControlNode(Node):
         if not self.last_sent_batch:
             return False
         last_target = np.array(self.last_sent_batch[-1])
+        print("motor_pos",self.current_motor_pos)
         return np.allclose(self.current_motor_pos,last_target,atol=0.3)
 
     def pub_esp_cmd(self,pos_ref_queue):

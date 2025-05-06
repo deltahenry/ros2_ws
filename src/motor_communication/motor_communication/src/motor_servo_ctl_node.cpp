@@ -80,7 +80,7 @@ int main(int argc, char* argv[])
 			if(msc->wait_esm_command_result() == 0)
 			result_ESMcmd_flag = false;
 		}
-		msc->publish_motor_info_servostate();
+		// msc->publish_motor_info_servostate();
 		rclcpp::spin_some(msc);
 		delay.sleep();
 	}

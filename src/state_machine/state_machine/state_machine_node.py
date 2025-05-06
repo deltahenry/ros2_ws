@@ -35,9 +35,9 @@ class InitializeState(State):
         init_finished = blackboard["init_finished"]
         motor_ok = blackboard["motor_ok"]
 
-        print("init_buttons:",init_buttons)
-        print("motion_finished:",motion_finished)
-        print("motor_state:",blackboard["motor_ok"])
+        # print("init_buttons:",init_buttons)
+        # print("motion_finished:",motion_finished)
+        # print("motor_state:",blackboard["motor_ok"])
         set_home_publisher = blackboard["set_home_publisher"]
 
         if motor_ok:
