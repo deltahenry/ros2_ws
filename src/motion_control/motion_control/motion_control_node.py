@@ -12,7 +12,7 @@ class MotionControlNode(Node):
     def __init__(self):
         super().__init__('motion_control_node')
 
-        self.declare_parameter('v_des', 1.0)
+        self.declare_parameter('v_des', 0.1)
         self.declare_parameter('batch_size', 10)
 
         self.v_des = self.get_parameter('v_des').get_parameter_value().double_value
@@ -98,7 +98,15 @@ class MotionControlNode(Node):
     def generate_trajectory(self, x_start, y_start, yaw_start, x_end, y_end, yaw_end):
         dx, dy, dyaw = x_end - x_start, y_end - y_start, yaw_end - yaw_start
         dist = max(abs(dx), abs(dy), abs(dyaw))#only for one state change
-        steps = max(int(dist / self.v_des), 1)
+        
+        if abs(dyaw) > abs(dx) and abs(dyaw) > abs(dy):
+            steps = max(int(dist / 0.0005), 1)
+        elif abs(dy) > abs(dx) and abs(dy) > abs(dyaw):
+            steps = max(int(dist / 1.0), 1)
+        else:
+            steps = max(int(dist / self.v_des), 1)
+        
+        # steps = max(int(dist / self.v_des), 1)
 
         x_step, y_step, yaw_step = dx / steps, dy / steps, dyaw / steps
         return [(x_start + i * x_step, y_start + i * y_step, yaw_start + i * yaw_step) for i in range(1, steps + 1)]

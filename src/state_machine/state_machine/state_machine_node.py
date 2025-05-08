@@ -352,8 +352,9 @@ class StateMachineNode(Node):
         if self.blackboard["motion_finished"]:
             base_increments = {
                 0: 1.0,        # x
-                1: 5.0,        # y
-                2: 0.017       # yaw (1 degree in radians)
+                1: 20.0,        # y
+                2: 0.00436       # yaw (0.25 degree in radians)
+                # 2: 0.017       # yaw (0.25 degree in radians)
             }
             # Define a scaling factor for step size
             step_scale = {
@@ -376,32 +377,39 @@ class StateMachineNode(Node):
                 self.y += delta
             elif msg.axis == 2:
                 self.yaw += delta
+            elif msg.axis == 3: #assemble place
+                self.y = 300.0
+            elif msg.axis == 4: #ready place
+                self.y = 200.0
+            elif msg.axis == 5: #y-axis home place
+                self.y = 0.0
             else:
                 print("Invalid axis")
 
             #safety range:
-            y1 = -8.26*self.yaw + 475.0
-            y2 = 8.26*self.yaw + 475.0
-            y3 = -8.26*self.yaw + 215.0
-            y4 = 8.26*self.yaw + 215.0
+            x1 = -8.26*self.yaw + 475.0
+            x2 = 8.26*self.yaw + 475.0
+            x3 = -8.26*self.yaw + 215.0
+            x4 = 8.26*self.yaw + 215.0
             
-            self.blackboard["pos_cmd"]["x"] = self.x
-            self.blackboard["pos_cmd"]["y"] = self.y
-            self.blackboard["pos_cmd"]["yaw"] = self.yaw
+            # self.blackboard["pos_cmd"]["x"] = self.x
+            # self.blackboard["pos_cmd"]["y"] = self.y
+            # self.blackboard["pos_cmd"]["yaw"] = self.yaw
 
-            # #pos cmd safety check
-            # if self.yaw >=0:
-            #     if self.x <= y1 and self.x >= y4:
-            #         self.blackboard["pos_cmd"]["x"] = self.x
-            #         self.blackboard["pos_cmd"]["y"] = self.y
-            #         self.blackboard["pos_cmd"]["yaw"] = self.yaw
-            # elif self.yaw <0:
-            #     if self.x <= y2 and self.x >= y3:
-            #         self.blackboard["pos_cmd"]["x"] = self.x
-            #         self.blackboard["pos_cmd"]["y"] = self.y
-            #         self.blackboard["pos_cmd"]["yaw"] = self.yaw
-            # else:
-            #     print("exceed safety range")
+            #pos cmd safety check
+            if self.y > -200.0 and self.y < 600:
+                if self.yaw >=0:
+                    if self.x <= x1 and self.x >= x4 and self.yaw <= 0.087:
+                        self.blackboard["pos_cmd"]["x"] = self.x
+                        self.blackboard["pos_cmd"]["y"] = self.y
+                        self.blackboard["pos_cmd"]["yaw"] = self.yaw
+                elif self.yaw <0:
+                    if self.x <= x2 and self.x >= x3 and self.yaw >= -0.087:
+                        self.blackboard["pos_cmd"]["x"] = self.x
+                        self.blackboard["pos_cmd"]["y"] = self.y
+                        self.blackboard["pos_cmd"]["yaw"] = self.yaw
+            else:
+                print("exceed safety range")
 
         else:
             print("device is running")

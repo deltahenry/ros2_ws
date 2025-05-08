@@ -148,31 +148,57 @@ class MyGUI(QWidget):
         self.top_right_text.setAlignment(Qt.AlignCenter)
         self.top_right_text.setStyleSheet("background-color: #333; color: white; border: 1px solid gray;")
 
-        self.right_buttons = []
-        button_grid = QGridLayout()
-
-        # 按鈕名稱可以在這裡自定義
+                # === Motion Buttons Grid ===
         button_names = ["X+", "X-", "Y+", "Y-", "Yaw+", "Yaw-"]
-        for i, button_name in enumerate(button_names):
-            btn = QPushButton(button_name)
+        button_grid = QGridLayout()
+        self.right_buttons = []
+
+        for i, name in enumerate(button_names):
+            btn = QPushButton(name)
             btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            btn.clicked.connect(getattr(self, f"on_{button_name.replace('+', 'plus').replace('-', 'minus').lower()}"))
+            btn.setMinimumSize(100, 60)
+            btn.clicked.connect(getattr(self, f"on_{name.replace('+', 'plus').replace('-', 'minus').lower()}"))
             self.right_buttons.append(btn)
             button_grid.addWidget(btn, i // 2, i % 2)
 
+        # === Quality Combo (above motion buttons, centered) ===
         self.quality_combo = QComboBox()
         self.quality_combo.addItems(["High", "Medium", "Low"])
         self.quality_combo.currentIndexChanged.connect(self.update_quality)
+        self.quality_combo.setMaximumWidth(150)
 
-        button_and_combo_layout = QHBoxLayout()
-        button_and_combo_layout.addLayout(button_grid, 3)
-        button_and_combo_layout.addWidget(self.quality_combo, 1)
+        # Wrap quality combo and motion buttons in vertical layout
+        quality_and_motion_layout = QVBoxLayout()
+        quality_and_motion_layout.addWidget(self.quality_combo, alignment=Qt.AlignHCenter)
+        quality_and_motion_layout.addSpacing(10)
+        quality_and_motion_layout.addLayout(button_grid)
 
+        # === Extra Buttons (right of motion buttons) ===
+        extra_button_names = ["Assemble Place","Ready Place","Y-axis Home"]
+        extra_button_callbacks = [self.on_extra1_clicked, self.on_extra2_clicked, self.on_extra3_clicked]
+        extra_button_layout = QVBoxLayout()
+
+        for name,callback in zip(extra_button_names,extra_button_callbacks):
+            btn = QPushButton(name)
+            btn.setMinimumWidth(40)
+            btn.setMinimumHeight(40)
+            btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            btn.clicked.connect(callback)
+            extra_button_layout.addWidget(btn)
+
+        # === Combine motion block and extra block horizontally ===
+        motion_and_extra_layout = QHBoxLayout()
+        motion_and_extra_layout.addLayout(quality_and_motion_layout, 3)
+        motion_and_extra_layout.addSpacing(10)
+        motion_and_extra_layout.addLayout(extra_button_layout, 1)
+
+        # === Final right panel: top text + combo + motion/extra ===
         right_top_layout = QVBoxLayout()
         right_top_layout.addWidget(self.top_right_text)
-        right_top_layout.addLayout(button_and_combo_layout)
+        right_top_layout.addSpacing(10)
+        right_top_layout.addLayout(motion_and_extra_layout)
 
-        # === 上半部 layout：左影像 + 右操作 ===
+        # === Final Layout: image + right panel ===
         top_layout = QHBoxLayout()
         top_layout.addWidget(self.image_label, 3)
         top_layout.addLayout(right_top_layout, 2)
@@ -386,8 +412,8 @@ class MyGUI(QWidget):
                 pos_label, curr_label = self.motor_labels[i]
                 pos_label.setText(f"位置: {float(data['position']):.2f}")
                 curr_label.setText(f"電流: {float(data['current']):.2f} A")
-                
 
+    #most important
     def update_frame(self):
         button_cmd = {
             "init_cmd":self.init_button,
@@ -446,24 +472,28 @@ class MyGUI(QWidget):
                 Qt.IgnoreAspectRatio,
                 Qt.SmoothTransformation
             ))
+   
     # 每個按鈕的回調函數
-
     def on_xplus(self):
         self.top_right_text.setText("X+ Button clicked!")
         self.node_pub.publish_cmd(axis = 0, step = self.step)
-
+   
     def on_xminus(self):
         self.top_right_text.setText("X- Button clicked!")
         self.node_pub.publish_cmd(axis = 0, step = self.step * (-1))
+   
     def on_yplus(self):
         self.top_right_text.setText("Y+ Button clicked!")
         self.node_pub.publish_cmd(axis = 1, step = self.step)
+   
     def on_yminus(self):
         self.top_right_text.setText("Y- Button clicked!")
         self.node_pub.publish_cmd(axis = 1, step = self.step * (-1))
+   
     def on_yawplus(self):
         self.top_right_text.setText("Yaw+ Button clicked!")
         self.node_pub.publish_cmd(axis = 2, step = self.step)
+   
     def on_yawminus(self):
         self.top_right_text.setText("Yaw- Button clicked!")
         self.node_pub.publish_cmd(axis = 2, step = self.step * (-1))
@@ -508,11 +538,6 @@ class MyGUI(QWidget):
         self.top_right_text.setText("夾具關閉 Button clicked!")
         self.gripper_button =True
         
-    def on_btn_servo_off(self):
-        self.top_right_text.setText("Sending Servo OFF command...")
-        self.ros_client.call_servo_off()
-        self.top_right_text.setText("Servo OFF command sent.")
-        
     def on_quality_high(self):
         self.top_right_text.setText("High quality selected!")
         self.step = 3
@@ -520,6 +545,7 @@ class MyGUI(QWidget):
     def on_quality_medium(self):
         self.top_right_text.setText("Medium quality selected!")
         self.step = 2
+    
     def on_quality_low(self):
         self.top_right_text.setText("Low quality selected!")
         self.step = 1
@@ -531,6 +557,23 @@ class MyGUI(QWidget):
             self.on_quality_medium()
         elif index == 2:
             self.on_quality_low()
+
+    def on_btn_servo_off(self):
+        self.top_right_text.setText("Sending Servo OFF command...")
+        self.ros_client.call_servo_off()
+        self.top_right_text.setText("Servo OFF command sent.")
+    
+    def on_extra1_clicked(self):
+        self.top_right_text.setText("Assemble Place clicked")
+        self.node_pub.publish_cmd(axis = 3, step = 4)
+
+    def on_extra2_clicked(self):
+        self.top_right_text.setText("Ready Place clicked")
+        self.node_pub.publish_cmd(axis = 4, step = 4)
+
+    def on_extra3_clicked(self):
+        self.top_right_text.setText("Y-axis Home Place clicked")
+        self.node_pub.publish_cmd(axis = 5, step = 4)
 
     def switch_layout(self, index):
         self.text_mode_1x6.setVisible(index == 0)
