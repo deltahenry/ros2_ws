@@ -352,7 +352,7 @@ class StateMachineNode(Node):
         if self.blackboard["motion_finished"]:
             base_increments = {
                 0: 1.0,        # x
-                1: 20.0,        # y
+                1: 1.0,        # y
                 2: 0.00436       # yaw (0.25 degree in radians)
                 # 2: 0.017       # yaw (0.25 degree in radians)
             }
@@ -378,9 +378,9 @@ class StateMachineNode(Node):
             elif msg.axis == 2:
                 self.yaw += delta
             elif msg.axis == 3: #assemble place
-                self.y = 300.0
+                self.y = 1200.0
             elif msg.axis == 4: #ready place
-                self.y = 200.0
+                self.y = 450.0
             elif msg.axis == 5: #y-axis home place
                 self.y = 0.0
             else:
@@ -391,13 +391,9 @@ class StateMachineNode(Node):
             x2 = 8.26*self.yaw + 475.0
             x3 = -8.26*self.yaw + 215.0
             x4 = 8.26*self.yaw + 215.0
-            
-            # self.blackboard["pos_cmd"]["x"] = self.x
-            # self.blackboard["pos_cmd"]["y"] = self.y
-            # self.blackboard["pos_cmd"]["yaw"] = self.yaw
 
             #pos cmd safety check
-            if self.y > -200.0 and self.y < 600:
+            if self.y > -20.0 and self.y < 1250:
                 if self.yaw >=0:
                     if self.x <= x1 and self.x >= x4 and self.yaw <= 0.087:
                         self.blackboard["pos_cmd"]["x"] = self.x

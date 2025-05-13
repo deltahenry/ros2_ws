@@ -2,7 +2,7 @@ import sys
 import cv2
 from PySide6.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QTextEdit, QGridLayout,
-    QVBoxLayout, QHBoxLayout, QComboBox, QSizePolicy
+    QVBoxLayout, QHBoxLayout, QComboBox, QSizePolicy,QInputDialog
 )
 from PySide6.QtGui import QPixmap, QImage
 from PySide6.QtCore import Qt, QTimer, QSize, Signal, QObject
@@ -16,6 +16,7 @@ from std_msgs.msg import Bool
 from cv_bridge import CvBridge
 import copy
 from uros_interface.srv import ESMcmd
+from pymodbus.client import ModbusTcpClient
 
 class RosNode_pub(Node):
     def __init__(self):
@@ -118,6 +119,7 @@ class RosNode_client(Node):
             self.get_logger().info('Service call succeeded')
         else:
             self.get_logger().error('Service call failed')
+
 class MyGUI(QWidget):
     def __init__(self):
         super().__init__()
@@ -127,6 +129,18 @@ class MyGUI(QWidget):
         self.init_ui()
         self.step = 3
         self.update_count = 0
+        self.y_value = None
+
+        # 設備參數
+        ip = "192.168.1.10"           # 請換成你的設備 IP
+        port = 502                    # Modbus TCP 默認通訊埠
+        self.slave_id = 2                   # 你的 Slave ID
+        self.register_address = 0X9C60     # 要寫入的暫存器地址
+        self.value_to_write = 0        # 寫入的值（16-bit 整數）
+
+        # 建立連線
+        self.client = ModbusTcpClient(ip, port=port)
+        self.client.connect()
 
     def init_button_cmd(self):
 
@@ -185,6 +199,19 @@ class MyGUI(QWidget):
             btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             btn.clicked.connect(callback)
             extra_button_layout.addWidget(btn)
+        
+        # # === Extra4 button ===
+        # self.extra4_button = QPushButton("Extra4")
+        # self.extra4_button.setMinimumHeight(40)
+        # self.extra4_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        # self.extra4_button.clicked.connect(self.on_extra4_clicked)
+        # extra_button_layout.addWidget(self.extra4_button)
+        # # === Blank board below Extra4 ===
+        # self.extra4_display = QLabel("No value yet")
+        # self.extra4_display.setAlignment(Qt.AlignCenter)
+        # self.extra4_display.setStyleSheet("border: 1px solid gray; padding: 5px;")
+        # self.extra4_display.setMinimumHeight(30)
+        # extra_button_layout.addWidget(self.extra4_display)
 
         # === Combine motion block and extra block horizontally ===
         motion_and_extra_layout = QHBoxLayout()
@@ -532,10 +559,12 @@ class MyGUI(QWidget):
 
     def on_btn_gripper_open(self):
         self.top_right_text.setText("夾具打開 Button clicked!")
+        self.client.write_register(address=self.register_address, value=49152, slave=self.slave_id)
         self.gripper_button =False
-
+        
     def on_btn_gripper_close(self):
         self.top_right_text.setText("夾具關閉 Button clicked!")
+        self.client.write_register(address=self.register_address, value=0, slave=self.slave_id)
         self.gripper_button =True
         
     def on_quality_high(self):
@@ -574,6 +603,14 @@ class MyGUI(QWidget):
     def on_extra3_clicked(self):
         self.top_right_text.setText("Y-axis Home Place clicked")
         self.node_pub.publish_cmd(axis = 5, step = 4)
+
+    # def on_extra4_clicked(self):
+    #     num, ok = QInputDialog.getInt(self, "Input Number", "Enter a value for Extra4:")
+    #     if ok:
+    #         self.extra4_value = num
+    #         self.extra4_display.setText(str(num))
+    #         # Optional: publish the value here if needed
+    #         # self.publisher.publish(Int32(data=num))
 
     def switch_layout(self, index):
         self.text_mode_1x6.setVisible(index == 0)

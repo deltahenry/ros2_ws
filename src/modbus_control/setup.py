@@ -21,6 +21,7 @@ setup(
     entry_points={
         'console_scripts': [
             'set_home = modbus_control.set_home:main',
+            'io_control = modbus_control.io_control:main',
         ],
     },
 )
