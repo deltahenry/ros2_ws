@@ -353,8 +353,7 @@ class StateMachineNode(Node):
             base_increments = {
                 0: 1.0,        # x
                 1: 1.0,        # y
-                2: 0.00436       # yaw (0.25 degree in radians)
-                # 2: 0.017       # yaw (0.25 degree in radians)
+                2: 0.000436       # yaw (0.025 degree in radians)
             }
             # Define a scaling factor for step size
             step_scale = {
