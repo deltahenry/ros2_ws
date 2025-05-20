@@ -120,6 +120,20 @@ class RosNode_client(Node):
         else:
             self.get_logger().error('Service call failed')
 
+    def call_servo_on(self):
+        request = ESMcmd.Request()
+        request.servo_status = True
+        request.mode = 4
+        request.speed_limit = 5
+        request.lpf = 10
+
+        future = self.cli.call_async(request)
+        rclpy.spin_until_future_complete(self, future)
+        if future.result() is not None:
+            self.get_logger().info('Service call succeeded')
+        else:
+            self.get_logger().error('Service call failed')
+
 class MyGUI(QWidget):
     def __init__(self):
         super().__init__()
@@ -200,19 +214,6 @@ class MyGUI(QWidget):
             btn.clicked.connect(callback)
             extra_button_layout.addWidget(btn)
         
-        # # === Extra4 button ===
-        # self.extra4_button = QPushButton("Extra4")
-        # self.extra4_button.setMinimumHeight(40)
-        # self.extra4_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        # self.extra4_button.clicked.connect(self.on_extra4_clicked)
-        # extra_button_layout.addWidget(self.extra4_button)
-        # # === Blank board below Extra4 ===
-        # self.extra4_display = QLabel("No value yet")
-        # self.extra4_display.setAlignment(Qt.AlignCenter)
-        # self.extra4_display.setStyleSheet("border: 1px solid gray; padding: 5px;")
-        # self.extra4_display.setMinimumHeight(30)
-        # extra_button_layout.addWidget(self.extra4_display)
-
         # === Combine motion block and extra block horizontally ===
         motion_and_extra_layout = QHBoxLayout()
         motion_and_extra_layout.addLayout(quality_and_motion_layout, 3)
@@ -292,10 +293,10 @@ class MyGUI(QWidget):
         right_button_names = ["初始化", "電池櫃輔助線",\
                               "夾具打開", "手動故障移除",\
                               "機櫃輔助線", "夾具關閉",\
-                              "關閉馬達"]
+                              "關閉馬達","ON馬達"]
         for i, button_name in enumerate(right_button_names):
             # 將中文按鈕名稱轉換為對應的函數名
-            func_name = f"on_btn_{button_name.replace(' ', '').replace('初始化', 'initialize').replace('手動故障移除', 'manual_fault_reset').replace('電池櫃輔助線', 'battery_cabinet_aux').replace('機櫃輔助線', 'cabinet_aux').replace('夾具打開', 'gripper_open').replace('夾具關閉', 'gripper_close').replace('關閉馬達', 'servo_off')}"
+            func_name = f"on_btn_{button_name.replace(' ', '').replace('初始化', 'initialize').replace('手動故障移除', 'manual_fault_reset').replace('電池櫃輔助線', 'battery_cabinet_aux').replace('機櫃輔助線', 'cabinet_aux').replace('夾具打開', 'gripper_open').replace('夾具關閉', 'gripper_close').replace('關閉馬達', 'servo_off').replace('ON馬達', 'servo_on')}"
             btn = QPushButton(f"{button_name}")
             btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
             btn.clicked.connect(getattr(self, func_name))
@@ -315,6 +316,8 @@ class MyGUI(QWidget):
                 self.btn_gripper_close = btn  # <-- keep a reference
             elif button_name == "關閉馬達":
                 self.btn_servo_off = btn  # <-- keep a reference
+            elif button_name == "ON馬達":
+                self.btn_servo_on = btn  # <-- keep a reference
 
             self.right_bottom_buttons.append(btn)
             button_grid_right.addWidget(btn, i // 3, i % 3)
@@ -475,13 +478,18 @@ class MyGUI(QWidget):
             (50, h - 50),
             (w - 50, h - 50)
             ]
+            
             # print("pick_in_image",self.node_sub.state_info.batterypicker)
             if  self.node_sub.state_info.batterypicker:
                 for pt in points:
                     cv2.circle(cv_image, pt, radius=10, color=(0, 0, 255), thickness=3)
+                    cv2.line(cv_image, pt1=(50,50), pt2=(50,h-50), color=(0, 255, 0), thickness=3)
+                    cv2.line(cv_image, pt1=(w-50,50), pt2=(w-50,h-50), color=(0, 255, 0), thickness=3)
             elif self.node_sub.state_info.batteryassembler:
                 for pt in points:
                     cv2.circle(cv_image, pt, radius=10, color=(0, 255, 0), thickness=3)
+                    cv2.line(cv_image, pt1=(50,50), pt2=(50,h-50), color=(0, 255, 0), thickness=3)
+                    cv2.line(cv_image, pt1=(w-50,50), pt2=(w-50,h-50), color=(0, 255, 0), thickness=3)
             
             # OpenCV BGR → RGB
             RGB_cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
@@ -591,7 +599,12 @@ class MyGUI(QWidget):
         self.top_right_text.setText("Sending Servo OFF command...")
         self.ros_client.call_servo_off()
         self.top_right_text.setText("Servo OFF command sent.")
-    
+
+    def on_btn_servo_on(self):
+        self.top_right_text.setText("Sending Servo ON command...")
+        self.ros_client.call_servo_on()
+        self.top_right_text.setText("Servo ON command sent.")
+
     def on_extra1_clicked(self):
         self.top_right_text.setText("Assemble Place clicked")
         self.node_pub.publish_cmd(axis = 3, step = 4)
