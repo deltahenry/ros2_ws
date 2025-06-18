@@ -489,7 +489,7 @@ class MyGUI(QWidget):
             ]
             
             dist = self.node_sub.rough_distance
-            threshold = 0.005  # 設定閾值 5mm
+            threshold = 0.015  # 設定閾值 15mm
             point_color = (0, 0, 255)  # 預設紅色
             
             if dist < threshold:
@@ -499,8 +499,14 @@ class MyGUI(QWidget):
             if  self.node_sub.state_info.batterypicker:
                 for pt in points:
                     cv2.circle(cv_image, pt, radius=10, color=point_color, thickness=3)
-                    cv2.line(cv_image, pt1=(50,50), pt2=(50,h-50), color=point_color, thickness=3)
-                    cv2.line(cv_image, pt1=(w-50,50), pt2=(w-50,h-50), color=point_color, thickness=3)
+
+                    cv2.line(cv_image, pt1=(295,364), pt2=(295,527), color=point_color, thickness=3)
+                    cv2.line(cv_image, pt1=(1001,364), pt2=(1003,529), color=point_color, thickness=3)
+                    cv2.line(cv_image, pt1=(1003,529), pt2=(295,527), color=point_color, thickness=3)
+
+                    cv2.line(cv_image, pt1=(1018,514), pt2=(1018,714), color=point_color, thickness=3)
+                    cv2.line(cv_image, pt1=(277,510), pt2=(277,714), color=point_color, thickness=3)
+
             elif self.node_sub.state_info.batteryassembler:
                 for pt in points:
                     cv2.circle(cv_image, pt, radius=10, color=point_color, thickness=3)

@@ -27,6 +27,7 @@ setup(
         'console_scripts': [
         	'fake_motor = gui.fake_motor_node:main',
             'gui = gui.gui_node:main',
+            'realsense_display = gui.realsense_display:main',
         ],
     },
 )

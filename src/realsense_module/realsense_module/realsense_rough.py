@@ -38,6 +38,10 @@ class RealSenseRoughNode(Node):
         self.color_image = None
         self.depth_image = None
     
+    def draw_circle(self,event, x, y, flags, param):
+        if event == cv2.EVENT_LBUTTONDOWN:
+            print("X:", x, "Y:", y)
+            print("depth:", self.depth_image[y, x])
 
     def timer_callback(self):
         color_image, depth_image = self.Cam.take_pic()
@@ -58,12 +62,14 @@ class RealSenseRoughNode(Node):
             step=color_image.shape[1] * 3,
             data=color_image.tobytes()
         )
+        
 
         self.image_publisher.publish(msg)
-
         
         if color_image is not None:
-            # cv2.imshow('RealSense - Pose Detection', color_image)
+            cv2.imshow('RealSense - Pose Detection', color_image)
+            cv2.namedWindow('RealSense - Pose Detection', cv2.WINDOW_NORMAL)
+            cv2.setMouseCallback('RealSense - Pose Detection', self.draw_circle)  # Disable mouse callback
             cv2.waitKey(1)
 
         if self.golden_pcd is not None:
@@ -71,6 +77,7 @@ class RealSenseRoughNode(Node):
             if current_pcd is not None:
                 dist = self.compare_pcd_distance(self.golden_pcd, current_pcd)
                 self.get_logger().info(f"📏 平均點雲距離: {dist:.4f} m")
+                # print('height:', depth_image.shape[0], 'width:', depth_image.shape[1])
                 msg = Float32()
                 msg.data = float(dist)
                 self.dist_pub.publish(msg)
