@@ -9,7 +9,7 @@ from yasmin_ros import set_ros_loggers
 from yasmin_viewer import YasminViewerPub
 from std_msgs.msg import String,Float32MultiArray,Bool,Int32
 from custom_msgs.msg import StateInfo,ButtonCmd,PoseIncrement,InterfaceMultipleMotors,InterfaceSingleMotor
-import math
+
 
 def set_home(set_home_publisher,set_home_data):
     msg = Bool()
@@ -215,16 +215,16 @@ class StateMachineNode(Node):
         self.init_motors_info()
 
         #init pos_cmd
-        self.init_pose()
+        self.init_pos_cmd()
 
         #open the blackboard for shareing data in the FSM
         self.blackboard = Blackboard()
 
         #share pos_cmd to blackboard
         self.blackboard["pos_cmd"] = {
-            "x": self.Xc_x,
-            "y": self.clipper_len,
-            "yaw": self.Xc_yaw,
+            "x": self.x,
+            "y": self.y,
+            "yaw": self.yaw,
             "x_past": 0.0,
             "y_past": 0.0,
             "yaw_past": 0.0
@@ -332,7 +332,7 @@ class StateMachineNode(Node):
         YasminViewerPub("yasmin_demo", self.sm)
 
         # Timer to periodically publish data to ui_node
-        self.timer = self.create_timer(0.5, self.update_fsm)  # Update every second
+        self.timer = self.create_timer(0.5, self.update_fsm)
         # self.timer = self.create_timer(5, self.update_fsm) #test
 
     def esm_info_callback(self,msg:Int32):
@@ -350,32 +350,12 @@ class StateMachineNode(Node):
             "gripper_button":msg.gripper_button,
         }
 
-    def tcp_transform(self, x_move, yaw_move, delta_y):
-
-        Xp_x = x_move*math.cos(yaw_move)
-        Xp_y = -x_move*math.sin(yaw_move) + delta_y
-
-        Xcc_x = delta_y*math.sin(yaw_move) + x_move*math.cos(yaw_move)
-        Xcc_y = -delta_y*math.cos(yaw_move) + self.x_move*math.sin(yaw_move) + delta_y
-
-        m = (Xcc_y - Xp_y) / (Xcc_x - Xp_x) if (Xcc_x - Xp_x) != 0 else float('inf')  # slope
-
-        Xc_y = 0
-        Xc_x = (Xc_y - Xcc_y)/ m + Xcc_x if m != 0 else Xcc_x  # x coordinate of the center point
-        clipper_len = math.sqrt((Xc_x-Xcc_x)**2 + (Xc_y-Xcc_y)**2)  # distance from the center point to the clipper
-
-        Xc_x = Xc_x + 345.0  # offset for the center point
-
-        return Xc_x, clipper_len, yaw_move
-
-
     def pose_increment_callback(self,msg:PoseIncrement):
         if self.blackboard["motion_finished"]:
             base_increments = {
                 0: 1.0,        # x
                 1: 1.0,        # y
                 2: 0.000436       # yaw (0.025 degree in radians)
-                # 2: 0.01745       # yaw (1 degree in radians)
             }
             # Define a scaling factor for step size
             step_scale = {
@@ -393,56 +373,45 @@ class StateMachineNode(Node):
 
             # Apply the change
             if msg.axis == 0:
-                self.x_move += delta
-                self.Xc_x,self.clipper_len,self.Xc_yaw = self.tcp_transform(self.x_move, self.yaw_move, self.delta_y)
+                self.x += delta
             elif msg.axis == 1:
-                self.y_move += delta
-                self.clipper_len += delta
+                self.y += delta
             elif msg.axis == 2:
-                self.yaw_move += delta
-                self.Xc_x,self.clipper_len,self.Xc_yaw = self.tcp_transform(self.x_move, self.yaw_move, self.delta_y)
-
+                self.yaw += delta
             elif msg.axis == 3: #assemble place
-                self.clipper_len = 1200.0
-
+                self.y = 1200.0
             elif msg.axis == 4: #ready place
-                self.clipper_len = 450.0
-                
+                self.y = 450.0
             elif msg.axis == 5: #y-axis home place
-                self.clipper_len = 0.0
+                self.y = 0.0
             else:
                 print("Invalid axis")
 
-            print("Current pose:")
-            print("Xc_x:", self.Xc_x)
-            print("clipper_len:", self.clipper_len)
-            print("Xc_yaw:", self.Xc_yaw)
-            
+            print("Origin pose:")
+            print("Xc_x:", self.x)
+            print("clipper_len:", self.y)
+            print("Xc_yaw:", self.yaw)
 
             #safety range:
-            x1 = -8.26*self.Xc_yaw + 475.0
-            x2 = 8.26*self.Xc_yaw + 475.0
-            x3 = -8.26*self.Xc_yaw + 215.0
-            x4 = 8.26*self.Xc_yaw + 215.0
+            x1 = -8.26*self.yaw + 475.0
+            x2 = 8.26*self.yaw + 475.0
+            x3 = -8.26*self.yaw + 215.0
+            x4 = 8.26*self.yaw + 215.0
+
+            print
 
             #pos cmd safety check
-            if self.clipper_len > -20.0 and self.clipper_len < 1250:
-                if self.Xc_yaw >=0:
-                    if self.Xc_x <= x1 and self.Xc_x >= x4 and self.Xc_yaw <= 0.087:
-                        print("pos cmd safety check passed")
-                        self.blackboard["pos_cmd"]["x"] = self.Xc_x
-                        self.blackboard["pos_cmd"]["y"] = self.clipper_len
-                        self.blackboard["pos_cmd"]["yaw"] = self.Xc_yaw
-                    else:
-                        print("pos cmd safety check failed")
-                elif self.Xc_yaw <0:
-                    if self.Xc_x <= x2 and self.Xc_x >= x3 and self.Xc_yaw >= -0.087:
-                        print("pos cmd safety check passed")
-                        self.blackboard["pos_cmd"]["x"] = self.Xc_x
-                        self.blackboard["pos_cmd"]["y"] = self.clipper_len
-                        self.blackboard["pos_cmd"]["yaw"] = self.Xc_yaw
-                    else:
-                        print("pos cmd safety check failed")
+            if self.y > -20.0 and self.y < 1250:
+                if self.yaw >=0:
+                    if self.x <= x1 and self.x >= x4 and self.yaw <= 0.087:
+                        self.blackboard["pos_cmd"]["x"] = self.x
+                        self.blackboard["pos_cmd"]["y"] = self.y
+                        self.blackboard["pos_cmd"]["yaw"] = self.yaw
+                elif self.yaw <0:
+                    if self.x <= x2 and self.x >= x3 and self.yaw >= -0.087:
+                        self.blackboard["pos_cmd"]["x"] = self.x
+                        self.blackboard["pos_cmd"]["y"] = self.y
+                        self.blackboard["pos_cmd"]["yaw"] = self.yaw
             else:
                 print("exceed safety range")
 
@@ -476,20 +445,20 @@ class StateMachineNode(Node):
         self.motors_info.motor_info[2].id = 3
         self.motors_info.motor_info[2].servo_state = True
 
-    def init_pose(self):
-        # Initialize the pose variables
-        self.x_move = 0.0
-        self.y_move = 0.0
-        self.yaw_move = 0.0
-        self.delta_y = 0.0
-
-        #center pose
-        self.Xc_x = 345.0
-        self.clipper_len = 0.0
-        self.Xc_yaw = 0.0
+    def init_pos_cmd(self):
+        self.x = 345.0
+        self.y = 0.0
+        self.yaw = 0.0
 
     def check_device_state(self):
         #check motor:
+        # for i in range(self.motors_info.quantity):
+        #     if self.motors_info.motor_info[i].servo_state:
+        #         all_ok = True
+        #         print(f"M{i+1} is ok")
+        #     else:
+        #         print(f"M{i+1} is failed")
+        #         all_ok = False
         if self.esm_info == 0:
             all_ok = True
         else:
@@ -508,10 +477,10 @@ class StateMachineNode(Node):
             self.servo_switch_pub.publish(motor_power)
             print("motor_state:",self.motor_ok)
         else:
-            # print("update_fsm")
+            print("update_fsm")
             try:
                 outcome = self.sm(blackboard=self.blackboard)
-                # yasmin.YASMIN_LOG_INFO(f"FSM current state: {outcome}")
+                yasmin.YASMIN_LOG_INFO(f"FSM current state: {outcome}")
             except Exception as e:
                 self.get_logger().error(f"FSM execution error: {str(e)}")
             #publish FSM state to gui_node

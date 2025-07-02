@@ -23,7 +23,9 @@ setup(
     entry_points={
         'console_scripts': [
 		'state_machine = state_machine.state_machine_node:main',
+        'state_machine_origin = state_machine.state_machine_origin:main',
         'test = state_machine.test:main',
+        'tcp_test = state_machine.tcp_test:main',
         ],
     },
 )

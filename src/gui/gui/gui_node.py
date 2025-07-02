@@ -365,7 +365,7 @@ class MyGUI(QWidget):
         self.node_pub = RosNode_pub()
         self.node_sub = RosNode_sub()
         self.realsense_node = RealsenseSubscriber()
-        self.ros_client = RosNode_client()
+        # self.ros_client = RosNode_client()
 
     def update_ros_sub(self):
         rclpy.spin_once(self.node_sub, timeout_sec=0.01)
